@@ -1,10 +1,11 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Download, Upload, LogOut, Check } from 'lucide-react'
-import { Screen, ScreenHeader, Card, Button, SectionLabel, Stat } from '../ui/kit'
+import { Download, Upload, LogOut, Check, KeyRound } from 'lucide-react'
+import { Screen, ScreenHeader, Card, Button, SectionLabel, Stat, Field, TextInput } from '../ui/kit'
 import { TurretDivider } from '../ui/TurretDivider'
 import { ConfirmDialog } from '../ui/Sheet'
 import { useAuth } from '../auth/AuthProvider'
+import { supabase } from '../lib/supabase'
 import { exportBackup, importBackup, dataCounts, type BackupFile } from '../db/repositories/backup'
 import { resetLocalUserData } from '../sync/resetLocal'
 import { today } from '../lib/format'
@@ -16,6 +17,32 @@ export function SettingsScreen() {
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [pendingImport, setPendingImport] = useState<BackupFile | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [pwBusy, setPwBusy] = useState(false)
+  const [pwMsg, setPwMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+
+  async function savePassword() {
+    if (pw.length < 8) {
+      setPwMsg({ kind: 'err', text: 'Use at least 8 characters.' })
+      return
+    }
+    if (pw !== pw2) {
+      setPwMsg({ kind: 'err', text: 'Passwords do not match.' })
+      return
+    }
+    setPwBusy(true)
+    setPwMsg(null)
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    setPwBusy(false)
+    if (error) {
+      setPwMsg({ kind: 'err', text: error.message })
+      return
+    }
+    setPw('')
+    setPw2('')
+    setPwMsg({ kind: 'ok', text: 'Password set. Sign in with your email + this password on your phone.' })
+  }
 
   async function doExport() {
     const file = await exportBackup()
@@ -105,6 +132,42 @@ export function SettingsScreen() {
           <Button small variant="danger" onClick={() => setSigningOut(true)}>
             <LogOut size={14} /> Sign out
           </Button>
+        </div>
+      </Card>
+
+      <SectionLabel>Password</SectionLabel>
+      <Card>
+        <Field label="New password">
+          <TextInput
+            type="password"
+            autoComplete="new-password"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+            placeholder="At least 8 characters"
+          />
+        </Field>
+        <Field label="Confirm password">
+          <TextInput
+            type="password"
+            autoComplete="new-password"
+            value={pw2}
+            onChange={(e) => setPw2(e.target.value)}
+          />
+        </Field>
+        <Button full disabled={pwBusy} onClick={() => void savePassword()}>
+          <KeyRound size={15} /> {pwBusy ? 'Saving…' : 'Set password'}
+        </Button>
+        {pwMsg && (
+          <div style={{ ...banner, color: pwMsg.kind === 'ok' ? 'var(--ok)' : 'var(--danger)' }}>
+            {pwMsg.kind === 'ok' && (
+              <Check size={14} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+            )}
+            {pwMsg.text}
+          </div>
+        )}
+        <div style={hint}>
+          Set a password to sign in without the email link — handy for the installed app on your
+          iPhone (Add to Home Screen, then use email + password).
         </div>
       </Card>
 
