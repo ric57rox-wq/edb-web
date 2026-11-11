@@ -7,7 +7,7 @@ import { SessionDetailScreen } from '../screens/sessions/SessionDetailScreen'
 import { DopeCardScreen } from '../screens/sessions/DopeCardScreen'
 import { LogScreen } from '../screens/sessions/LogScreen'
 import { AnalyticsScreen } from '../screens/AnalyticsScreen'
-import { SettingsScreen } from '../screens/Placeholders'
+import { SettingsScreen } from '../screens/SettingsScreen'
 
 export function Router() {
   return (
