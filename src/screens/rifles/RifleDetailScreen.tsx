@@ -18,11 +18,12 @@ import { Field, TextInput } from '../../ui/kit'
 import { RifleForm } from './RifleForm'
 import { BarrelForm } from './BarrelForm'
 import { AmmoForm } from './AmmoForm'
-import { useRifle, useBarrels, useAmmunition } from '../../hooks/useData'
+import { useRifle, useBarrels, useAmmunition, useSessionsForRifle } from '../../hooks/useData'
 import { deleteRifle } from '../../db/repositories/rifles'
 import { deleteBarrel, adjustBarrelRounds } from '../../db/repositories/barrels'
 import { deleteAmmunition } from '../../db/repositories/ammunition'
-import { barrelHealth, barrelLifePct } from '../../domain/metrics'
+import { barrelHealth, barrelLifePct, roundsFired } from '../../domain/metrics'
+import { HitRateBadge } from '../../ui/kit'
 import { totalRounds, formatDate } from '../../lib/format'
 import type { Barrel, Ammunition } from '../../domain/types'
 
@@ -39,6 +40,7 @@ export function RifleDetailScreen() {
   const rifle = useRifle(rifleId)
   const barrels = useBarrels(rifleId)
   const loads = useAmmunition(rifleId)
+  const sessions = useSessionsForRifle(rifleId)
 
   const [editingRifle, setEditingRifle] = useState(false)
   const [confirmDeleteRifle, setConfirmDeleteRifle] = useState(false)
@@ -195,6 +197,59 @@ export function RifleDetailScreen() {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Courses of fire */}
+      <SectionLabel
+        right={
+          sessions && sessions.length > 0 ? (
+            <Button small variant="ghost" onClick={() => navigate(`/rifles/${rifle.id}/sessions/new`)}>
+              <Plus size={14} /> Log
+            </Button>
+          ) : undefined
+        }
+      >
+        Courses of Fire
+      </SectionLabel>
+      {sessions == null ? null : sessions.length === 0 ? (
+        <EmptyState
+          title="Nothing logged yet"
+          hint="Record a course of fire to build this rifle's history and DOPE."
+          action={
+            <Button onClick={() => navigate(`/rifles/${rifle.id}/sessions/new`)}>
+              <Target size={15} /> Log Course of Fire
+            </Button>
+          }
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {sessions.slice(0, 8).map((s) => {
+            const total = roundsFired(s.hits, s.misses)
+            return (
+              <Card key={s.id} onClick={() => navigate(`/sessions/${s.id}`)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={rowTitle}>{s.target || formatDate(s.date)}</div>
+                    <div style={rowMeta}>
+                      {[s.distance != null ? `${s.distance} yd` : null, formatDate(s.date)].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <HitRateBadge hits={s.hits} misses={s.misses} />
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>
+                      {s.hits}/{total}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )
+          })}
+          {sessions.length > 8 && (
+            <Button variant="ghost" full onClick={() => navigate('/log')}>
+              View all {sessions.length} in Log
+            </Button>
+          )}
         </div>
       )}
 
