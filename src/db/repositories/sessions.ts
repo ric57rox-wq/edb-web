@@ -12,6 +12,7 @@
 import { db } from '../schema';
 import { newUuid } from '../syncStamp';
 import { adjustBarrelRounds } from './barrels';
+import { addPendingStorageDelete } from '../../sync/localState';
 import { roundsFired } from '../../domain/metrics';
 import type { Session, NewRow } from '../../domain/types';
 
@@ -59,12 +60,15 @@ export async function updateSession(
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  await db.transaction('rw', db.sessions, db.barrels, db.sessionPhotos, async () => {
+  const photos = await db.sessionPhotos.where('sessionId').equals(id).toArray();
+  for (const p of photos) if (p.storagePath) addPendingStorageDelete(db.name, p.storagePath);
+  await db.transaction('rw', db.sessions, db.barrels, db.sessionPhotos, db.photoBlobs, async () => {
     const s = await db.sessions.get(id);
     if (!s) return;
     await adjustBarrelRounds(s.barrelId, -roundsFired(s.hits, s.misses));
-    for (const p of await db.sessionPhotos.where('sessionId').equals(id).toArray()) {
+    for (const p of photos) {
       await db.sessionPhotos.delete(p.id);
+      await db.photoBlobs.delete(p.id);
     }
     await db.sessions.delete(id);
   });

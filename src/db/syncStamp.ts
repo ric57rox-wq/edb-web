@@ -34,9 +34,12 @@ export function newUuid(): string {
   });
 }
 
-/** Attach creating/updating/deleting hooks to every table. Call once per db. */
+/** Attach creating/updating/deleting hooks to the synced data tables. Call once per db. */
 export function installSyncHooks(db: Dexie): void {
   for (const table of db.tables) {
+    // Non-synced local stores (e.g. the photo blob cache) carry no sync columns.
+    if (!DATA_TABLE_NAMES.includes(table.name)) continue
+
     table.hook('creating', (_primKey, obj) => {
       const row = obj as Record<string, unknown>;
       if (row.id == null) row.id = newUuid();

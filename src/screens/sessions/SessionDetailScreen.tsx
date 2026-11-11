@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { Screen, ScreenHeader, Card, Button, Stat, HitRateBadge, SectionLabel } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
 import { ConfirmDialog } from '../../ui/Sheet'
+import { PhotosSection } from './PhotosSection'
 import { useSession, useRifle, useBarrels, useAmmunition } from '../../hooks/useData'
 import { deleteSession } from '../../db/repositories/sessions'
 import { hitRate, roundsFired } from '../../domain/metrics'
@@ -129,6 +130,8 @@ export function SessionDetailScreen() {
           </Card>
         </>
       )}
+
+      <PhotosSection sessionId={session.id} />
 
       {session.notes && (
         <>

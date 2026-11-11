@@ -63,6 +63,34 @@ export function clearTombstones(dbName: string): void {
 }
 
 /**
+ * Supabase Storage object keys whose photo rows were deleted locally. The blob
+ * is gone from the device immediately, but the Storage object can only be
+ * removed while online, so the path is queued here (survives reloads) until the
+ * next photo sync removes it.
+ */
+export function listPendingStorageDeletes(dbName: string): string[] {
+  const raw = store()?.getItem(keyFor(dbName, 'photoDeletes'));
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as string[];
+  } catch {
+    return [];
+  }
+}
+
+export function addPendingStorageDelete(dbName: string, path: string): void {
+  const s = store();
+  if (!s) return;
+  const list = listPendingStorageDeletes(dbName);
+  if (!list.includes(path)) list.push(path);
+  s.setItem(keyFor(dbName, 'photoDeletes'), JSON.stringify(list));
+}
+
+export function clearPendingStorageDeletes(dbName: string): void {
+  store()?.removeItem(keyFor(dbName, 'photoDeletes'));
+}
+
+/**
  * Remove ALL sync bookkeeping (cursors + tombstone log) for a database. Used
  * when wiping this device's local data on sign-out / account switch, so the next
  * user starts from a clean pull cursor instead of inheriting the previous user's.

@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { db } from '../db/schema';
 import { pull, push, syncOnce } from './engine';
 import { supabaseGateway } from './gateway';
+import { syncPhotos } from './photoSync';
 import { resetLocalUserData } from './resetLocal';
 import { isSupabaseConfigured } from '../lib/supabase';
 
@@ -73,6 +74,11 @@ export function useSyncedDatabase(userId?: string): boolean {
         } catch (err) {
           console.warn('Initial sync push failed (offline?); will retry.', err);
         }
+        try {
+          await syncPhotos();
+        } catch (err) {
+          console.warn('Initial photo sync failed (offline?); will retry.', err);
+        }
       }
 
       if (!cancelled) setReady(true);
@@ -86,9 +92,11 @@ export function useSyncedDatabase(userId?: string): boolean {
   useEffect(() => {
     if (!ready || !isSupabaseConfigured) return;
     const tick = () => {
-      void syncOnce(db, supabaseGateway).catch((err) => {
-        console.warn('Background sync failed (will retry).', err);
-      });
+      void syncOnce(db, supabaseGateway)
+        .then(() => syncPhotos())
+        .catch((err) => {
+          console.warn('Background sync failed (will retry).', err);
+        });
     };
     const onVisible = () => {
       if (document.visibilityState === 'visible') tick();

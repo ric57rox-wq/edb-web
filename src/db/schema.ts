@@ -7,7 +7,7 @@
 
 import Dexie, { type EntityTable } from 'dexie';
 import { installSyncHooks } from './syncStamp';
-import type { Rifle, Barrel, Ammunition, Session, SessionPhoto } from '../domain/types';
+import type { Rifle, Barrel, Ammunition, Session, SessionPhoto, PhotoBlob } from '../domain/types';
 
 export class EdbDB extends Dexie {
   rifles!: EntityTable<Rifle, 'id'>;
@@ -15,6 +15,8 @@ export class EdbDB extends Dexie {
   ammunition!: EntityTable<Ammunition, 'id'>;
   sessions!: EntityTable<Session, 'id'>;
   sessionPhotos!: EntityTable<SessionPhoto, 'id'>;
+  /** Local-only binary cache (not synced as rows). */
+  photoBlobs!: EntityTable<PhotoBlob, 'id'>;
 
   constructor(name = 'edb') {
     super(name);
@@ -25,6 +27,11 @@ export class EdbDB extends Dexie {
       ammunition: 'id, rifleId, updatedAt',
       sessions: 'id, rifleId, barrelId, ammunitionId, date, updatedAt',
       sessionPhotos: 'id, sessionId, updatedAt',
+    });
+    // v2 — local blob cache for photos (Phase 5). Additive: Dexie keeps the
+    // v1 stores and just creates this one.
+    this.version(2).stores({
+      photoBlobs: 'id',
     });
 
     installSyncHooks(this);

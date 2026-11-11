@@ -88,5 +88,15 @@ export interface SessionPhoto extends SyncFields {
   height?: number;
 }
 
+/**
+ * Local-only binary cache for a photo, keyed by the `session_photos` row id.
+ * Never synced as a row — the bytes go to Supabase Storage; this is the offline
+ * copy (both the capture queued before upload and the download cache).
+ */
+export interface PhotoBlob {
+  id: string;
+  blob: Blob;
+}
+
 /** Fields a caller supplies on create (sync columns are stamped by the repository). */
 export type NewRow<T extends SyncFields> = Omit<T, keyof SyncFields>;
