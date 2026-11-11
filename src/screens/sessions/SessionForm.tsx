@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { MapPin, Loader } from 'lucide-react'
 import { Screen, ScreenHeader, Button, Field, TextInput, TextArea, Select, Row, SectionLabel } from '../../ui/kit'
 import { useRifle, useBarrels, useAmmunition, useSession } from '../../hooks/useData'
 import { createSession, updateSession } from '../../db/repositories/sessions'
+import { fetchCurrentWeather } from '../../lib/weather'
 import { numOrUndef, today } from '../../lib/format'
 import type { Session } from '../../domain/types'
 
@@ -92,6 +94,36 @@ function SessionFormBody({
   const [f, setF] = useState<FormState>(initial)
   const set = (k: string) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }))
 
+  const [autoWeather, setAutoWeather] = useState(existing?.weatherSource === 'auto')
+  const [geoBusy, setGeoBusy] = useState(false)
+  const [geoErr, setGeoErr] = useState<string | null>(null)
+  // Manually editing a weather field flips the source back to manual.
+  const setW = (k: string) => (e: { target: { value: string } }) => {
+    setAutoWeather(false)
+    setF((s) => ({ ...s, [k]: e.target.value }))
+  }
+
+  async function useLocation() {
+    setGeoBusy(true)
+    setGeoErr(null)
+    try {
+      const w = await fetchCurrentWeather()
+      setF((s) => ({
+        ...s,
+        weatherTemp: w.temp != null ? String(w.temp) : s.weatherTemp,
+        windSpeed: w.windSpeed != null ? String(w.windSpeed) : s.windSpeed,
+        windDir: w.windDir ?? s.windDir,
+        humidity: w.humidity != null ? String(w.humidity) : s.humidity,
+        pressure: w.pressure != null ? String(w.pressure) : s.pressure,
+      }))
+      setAutoWeather(true)
+    } catch (e) {
+      setGeoErr(e instanceof Error ? e.message : 'Weather lookup failed.')
+    } finally {
+      setGeoBusy(false)
+    }
+  }
+
   async function save() {
     if (busy) return
     setBusy(true)
@@ -124,7 +156,7 @@ function SessionFormBody({
       humidity: numOrUndef(f.humidity),
       pressure: numOrUndef(f.pressure),
       light: f.light.trim() || undefined,
-      weatherSource: existing?.weatherSource ?? (weatherTouched ? ('manual' as const) : undefined),
+      weatherSource: autoWeather ? ('auto' as const) : weatherTouched ? ('manual' as const) : undefined,
       notes: f.notes.trim() || undefined,
     }
     let id: string
@@ -236,29 +268,40 @@ function SessionFormBody({
           <TextInput value={f.shotSequence} onChange={set('shotSequence')} placeholder="H H M H H" />
         </Field>
 
-        <SectionLabel>Weather</SectionLabel>
+        <SectionLabel
+          right={
+            <Button small variant="ghost" onClick={() => void useLocation()} disabled={geoBusy}>
+              {geoBusy ? <Loader size={13} /> : <MapPin size={13} />} {autoWeather ? 'Auto' : 'Use location'}
+            </Button>
+          }
+        >
+          Weather
+        </SectionLabel>
+        {geoErr && (
+          <div style={{ color: 'var(--danger)', fontSize: 12, margin: '-4px 2px 10px' }}>{geoErr}</div>
+        )}
         <Row>
           <Field label="Temp (°F)">
-            <TextInput inputMode="numeric" value={f.weatherTemp} onChange={set('weatherTemp')} />
+            <TextInput inputMode="numeric" value={f.weatherTemp} onChange={setW('weatherTemp')} />
           </Field>
           <Field label="Wind (mph)">
-            <TextInput inputMode="numeric" value={f.windSpeed} onChange={set('windSpeed')} />
+            <TextInput inputMode="numeric" value={f.windSpeed} onChange={setW('windSpeed')} />
           </Field>
         </Row>
         <Row>
           <Field label="Wind dir">
-            <TextInput value={f.windDir} onChange={set('windDir')} placeholder="NW / 3 o'clock" />
+            <TextInput value={f.windDir} onChange={setW('windDir')} placeholder="NW / 3 o'clock" />
           </Field>
           <Field label="Humidity (%)">
-            <TextInput inputMode="numeric" value={f.humidity} onChange={set('humidity')} />
+            <TextInput inputMode="numeric" value={f.humidity} onChange={setW('humidity')} />
           </Field>
         </Row>
         <Row>
           <Field label="Pressure (inHg)">
-            <TextInput inputMode="numeric" value={f.pressure} onChange={set('pressure')} />
+            <TextInput inputMode="numeric" value={f.pressure} onChange={setW('pressure')} />
           </Field>
           <Field label="Light">
-            <TextInput value={f.light} onChange={set('light')} placeholder="Overcast" />
+            <TextInput value={f.light} onChange={setW('light')} placeholder="Overcast" />
           </Field>
         </Row>
 
