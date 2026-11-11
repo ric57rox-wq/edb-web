@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== EDB tactical palette (dark-only, from the original prototype) ===== */
+:root {
+  --bg: #171d1a;
+  --panel: #1e2622;
+  --panel-2: #242e28;
+  --line: #33403a;
+  --line-soft: #2a352f;
+  --text: #dfe3de;
+  --text-dim: #8b968e;
+  --text-faint: #5c665f;
+  --brass: #c08a4e;
+  --brass-dim: #8a6339;
+  --impact: #ff7a1a;
+  --impact-dim: #b3560f;
+  --ok: #6fae7f;
+  --warn: #d9a441;
+  --danger: #c85a4a;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Signature type treatments reused across the app. */
+.font-display {
+  font-family: 'Rajdhani', system-ui, sans-serif;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 2.5px;
+  font-size: 10.5px;
+  color: var(--brass);
+  text-transform: uppercase;
+}
+
+.app-shell {
+  max-width: 520px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  padding-bottom: 88px;
+}
