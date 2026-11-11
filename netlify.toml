@@ -5,14 +5,17 @@
 [build.environment]
   NODE_VERSION = "20"
 
+[functions]
+  directory = "netlify/functions"
+
 # SPA fallback so client-side routes resolve on refresh / deep links.
+# Functions (/.netlify/...) are matched before this catch-all by Netlify.
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
-# Keep-alive: a daily scheduled function pings the Supabase REST root so the
-# free-tier project doesn't auto-pause after 7 days of inactivity.
-# (The function itself is added in the keep-alive build phase.)
-# [functions."keepalive"]
-#   schedule = "@daily"
+# Keep-alive: the daily schedule lives in the function file itself
+# (netlify/functions/keepalive.ts exports `config = { schedule: "@daily" }`),
+# which pings the Supabase REST root so the free-tier project doesn't auto-pause
+# after ~7 days of inactivity.
