@@ -15,6 +15,12 @@ export interface SyncFields {
   deletedAt: Date | null;
 }
 
+/** Angular unit for scope adjustments / holds. */
+export type AngularUnit = 'MIL' | 'MOA';
+
+/** Standard drag model a ballistic coefficient is referenced to. */
+export type DragModel = 'G1' | 'G7';
+
 export interface Rifle extends SyncFields {
   name: string;
   caliber?: string;
@@ -25,6 +31,12 @@ export interface Rifle extends SyncFields {
   scope?: string;
   /** Default suppressor; pre-fills a new session's suppressor field. */
   suppressor?: string;
+  /** Scope height over bore centerline, inches — ballistic solver input. */
+  sightHeight?: number;
+  /** Zero range in yards — the solver's reference distance. */
+  zeroRange?: number;
+  /** Angular unit the scope's turrets track in (MIL/MOA). */
+  zeroUnit?: AngularUnit;
   notes?: string;
 }
 
@@ -33,6 +45,8 @@ export interface Barrel extends SyncFields {
   label?: string;
   length?: string;
   twist?: string;
+  /** Rifling twist direction — drives spin-drift sign in the solver. */
+  twistDir?: 'R' | 'L';
   installed?: string; // YYYY-MM-DD
   /** Target barrel life in rounds (drives the health badge). */
   life?: number;
@@ -44,6 +58,16 @@ export interface Barrel extends SyncFields {
 export interface Ammunition extends SyncFields {
   rifleId: string;
   label: string;
+  /** Bullet weight in grains. */
+  bulletWeight?: number;
+  /** Ballistic coefficient (referenced to `bcModel`). */
+  bc?: number;
+  /** Drag model the BC is given for (default G7 for modern match bullets). */
+  bcModel?: DragModel;
+  /** Measured / book muzzle velocity in fps — the solver's starting velocity. */
+  muzzleVelocity?: number;
+  /** Optional MV temperature sensitivity, fps per °F (powder temp effect). */
+  mvTempSensitivity?: number;
   notes?: string;
 }
 
@@ -67,6 +91,12 @@ export interface Session extends SyncFields {
   velocity?: number;
   dopeElevation?: string;
   dopeWindage?: string;
+  /** Structured confirmed elevation hold (numeric), for solver true-up. */
+  elevationValue?: number;
+  elevationUnit?: AngularUnit;
+  /** Structured confirmed windage hold (numeric). */
+  windageValue?: number;
+  windageUnit?: AngularUnit;
   hits: number;
   misses: number;
   shotSequence?: string;
@@ -75,6 +105,8 @@ export interface Session extends SyncFields {
   windDir?: string;
   humidity?: number;
   pressure?: number;
+  /** Whether `pressure` is a station reading or sea-level-corrected (altimeter). */
+  pressureType?: 'station' | 'absolute';
   light?: string;
   weatherSource?: WeatherSource;
   notes?: string;

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Sheet } from '../../ui/Sheet'
-import { Button, Field, TextInput, TextArea, Row } from '../../ui/kit'
+import { Button, Field, TextInput, TextArea, Row, Select, SectionLabel } from '../../ui/kit'
 import { createRifle, updateRifle } from '../../db/repositories/rifles'
-import type { Rifle } from '../../domain/types'
+import { numOrUndef } from '../../lib/format'
+import type { Rifle, AngularUnit } from '../../domain/types'
 
 /**
  * Add / edit a rifle. `scope` and `suppressor` are stored as the rifle's
@@ -32,6 +33,9 @@ function RifleFormBody({ onClose, existing }: { onClose: () => void; existing?: 
   const [acquired, setAcquired] = useState(existing?.acquired ?? '')
   const [scope, setScope] = useState(existing?.scope ?? '')
   const [suppressor, setSuppressor] = useState(existing?.suppressor ?? '')
+  const [sightHeight, setSightHeight] = useState(existing?.sightHeight != null ? String(existing.sightHeight) : '')
+  const [zeroRange, setZeroRange] = useState(existing?.zeroRange != null ? String(existing.zeroRange) : '')
+  const [zeroUnit, setZeroUnit] = useState<AngularUnit>(existing?.zeroUnit ?? 'MIL')
   const [notes, setNotes] = useState(existing?.notes ?? '')
   const [busy, setBusy] = useState(false)
 
@@ -46,6 +50,9 @@ function RifleFormBody({ onClose, existing }: { onClose: () => void; existing?: 
       acquired: acquired || undefined,
       scope: scope.trim() || undefined,
       suppressor: suppressor.trim() || undefined,
+      sightHeight: numOrUndef(sightHeight),
+      zeroRange: numOrUndef(zeroRange),
+      zeroUnit,
       notes: notes.trim() || undefined,
     }
     if (existing) await updateRifle(existing.id, data)
@@ -87,6 +94,21 @@ function RifleFormBody({ onClose, existing }: { onClose: () => void; existing?: 
           <TextInput value={suppressor} onChange={(e) => setSuppressor(e.target.value)} placeholder="None" />
         </Field>
       </Row>
+      <SectionLabel>Ballistics</SectionLabel>
+      <Row>
+        <Field label="Sight height (in)" hint="Scope center over bore.">
+          <TextInput inputMode="decimal" value={sightHeight} onChange={(e) => setSightHeight(e.target.value)} placeholder="1.5" />
+        </Field>
+        <Field label="Zero (yd)">
+          <TextInput inputMode="numeric" value={zeroRange} onChange={(e) => setZeroRange(e.target.value)} placeholder="100" />
+        </Field>
+      </Row>
+      <Field label="Turret unit">
+        <Select value={zeroUnit} onChange={(e) => setZeroUnit(e.target.value as AngularUnit)}>
+          <option value="MIL">MIL</option>
+          <option value="MOA">MOA</option>
+        </Select>
+      </Field>
       <Field label="Notes">
         <TextArea value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>

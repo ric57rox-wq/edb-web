@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Sheet } from '../../ui/Sheet'
-import { Button, Field, TextInput, TextArea, Row } from '../../ui/kit'
+import { Button, Field, TextInput, TextArea, Row, Select } from '../../ui/kit'
 import { createBarrel, updateBarrel } from '../../db/repositories/barrels'
 import { numOrUndef } from '../../lib/format'
 import type { Barrel } from '../../domain/types'
@@ -37,6 +37,7 @@ function BarrelFormBody({
   const [label, setLabel] = useState(existing?.label ?? '')
   const [length, setLength] = useState(existing?.length ?? '')
   const [twist, setTwist] = useState(existing?.twist ?? '')
+  const [twistDir, setTwistDir] = useState<'' | 'R' | 'L'>(existing?.twistDir ?? '')
   const [installed, setInstalled] = useState(existing?.installed ?? '')
   const [life, setLife] = useState(existing?.life != null ? String(existing.life) : '')
   const [rounds, setRounds] = useState(existing?.rounds != null ? String(existing.rounds) : '0')
@@ -51,6 +52,7 @@ function BarrelFormBody({
       label: label.trim() || undefined,
       length: length.trim() || undefined,
       twist: twist.trim() || undefined,
+      twistDir: twistDir || undefined,
       installed: installed || undefined,
       life: numOrUndef(life),
       rounds: numOrUndef(rounds) ?? 0,
@@ -79,6 +81,13 @@ function BarrelFormBody({
           <TextInput value={twist} onChange={(e) => setTwist(e.target.value)} placeholder="1:8" />
         </Field>
       </Row>
+      <Field label="Twist direction" hint="Right-hand is typical; drives spin drift.">
+        <Select value={twistDir} onChange={(e) => setTwistDir(e.target.value as '' | 'R' | 'L')}>
+          <option value="">— unknown —</option>
+          <option value="R">Right (R)</option>
+          <option value="L">Left (L)</option>
+        </Select>
+      </Field>
       <Row>
         <Field label="Barrel life (rounds)" hint="Target round count before replacement.">
           <TextInput inputMode="numeric" value={life} onChange={(e) => setLife(e.target.value)} placeholder="2500" />

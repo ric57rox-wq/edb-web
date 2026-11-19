@@ -6,7 +6,7 @@ import { useRifle, useBarrels, useAmmunition, useSession } from '../../hooks/use
 import { createSession, updateSession } from '../../db/repositories/sessions'
 import { fetchCurrentWeather } from '../../lib/weather'
 import { numOrUndef, today } from '../../lib/format'
-import type { Session } from '../../domain/types'
+import type { Session, AngularUnit } from '../../domain/types'
 
 type FormState = Record<string, string>
 
@@ -39,6 +39,7 @@ export function SessionForm() {
       rifleId={rifleId}
       rifleScope={rifle.scope}
       rifleSuppressor={rifle.suppressor}
+      rifleZeroUnit={rifle.zeroUnit}
       existing={existing ?? undefined}
     />
   )
@@ -48,11 +49,13 @@ function SessionFormBody({
   rifleId,
   rifleScope,
   rifleSuppressor,
+  rifleZeroUnit,
   existing,
 }: {
   rifleId: string
   rifleScope?: string
   rifleSuppressor?: string
+  rifleZeroUnit?: AngularUnit
   existing?: Session
 }) {
   const navigate = useNavigate()
@@ -77,6 +80,10 @@ function SessionFormBody({
       velocity: NUM(existing?.velocity),
       dopeElevation: TEXT(existing?.dopeElevation),
       dopeWindage: TEXT(existing?.dopeWindage),
+      elevationValue: NUM(existing?.elevationValue),
+      elevationUnit: existing?.elevationUnit ?? rifleZeroUnit ?? 'MIL',
+      windageValue: NUM(existing?.windageValue),
+      windageUnit: existing?.windageUnit ?? rifleZeroUnit ?? 'MIL',
       hits: existing ? String(existing.hits ?? 0) : '0',
       misses: existing ? String(existing.misses ?? 0) : '0',
       shotSequence: TEXT(existing?.shotSequence),
@@ -85,10 +92,11 @@ function SessionFormBody({
       windDir: TEXT(existing?.windDir),
       humidity: NUM(existing?.humidity),
       pressure: NUM(existing?.pressure),
+      pressureType: existing?.pressureType ?? 'station',
       light: TEXT(existing?.light),
       notes: TEXT(existing?.notes),
     }),
-    [existing, rifleScope, rifleSuppressor],
+    [existing, rifleScope, rifleSuppressor, rifleZeroUnit],
   )
 
   const [f, setF] = useState<FormState>(initial)
@@ -147,6 +155,10 @@ function SessionFormBody({
       velocity: numOrUndef(f.velocity),
       dopeElevation: f.dopeElevation.trim() || undefined,
       dopeWindage: f.dopeWindage.trim() || undefined,
+      elevationValue: numOrUndef(f.elevationValue),
+      elevationUnit: numOrUndef(f.elevationValue) != null ? (f.elevationUnit as AngularUnit) : undefined,
+      windageValue: numOrUndef(f.windageValue),
+      windageUnit: numOrUndef(f.windageValue) != null ? (f.windageUnit as AngularUnit) : undefined,
       hits: numOrUndef(f.hits) ?? 0,
       misses: numOrUndef(f.misses) ?? 0,
       shotSequence: f.shotSequence.trim() || undefined,
@@ -155,6 +167,7 @@ function SessionFormBody({
       windDir: f.windDir.trim() || undefined,
       humidity: numOrUndef(f.humidity),
       pressure: numOrUndef(f.pressure),
+      pressureType: numOrUndef(f.pressure) != null ? (f.pressureType as 'station' | 'absolute') : undefined,
       light: f.light.trim() || undefined,
       weatherSource: autoWeather ? ('auto' as const) : weatherTouched ? ('manual' as const) : undefined,
       notes: f.notes.trim() || undefined,
@@ -257,10 +270,30 @@ function SessionFormBody({
           </Field>
         </Row>
         <Row>
-          <Field label="DOPE elevation">
-            <TextInput value={f.dopeElevation} onChange={set('dopeElevation')} placeholder="4.2 MIL" />
+          <Field label="Elevation hold" hint="Confirmed dial/hold — feeds the DOPE card.">
+            <div style={{ display: 'flex', gap: 6 }}>
+              <TextInput inputMode="decimal" value={f.elevationValue} onChange={set('elevationValue')} placeholder="4.2" />
+              <Select value={f.elevationUnit} onChange={set('elevationUnit')} style={{ width: 86, flex: 'none' }}>
+                <option value="MIL">MIL</option>
+                <option value="MOA">MOA</option>
+              </Select>
+            </div>
           </Field>
-          <Field label="DOPE windage">
+          <Field label="Windage hold">
+            <div style={{ display: 'flex', gap: 6 }}>
+              <TextInput inputMode="decimal" value={f.windageValue} onChange={set('windageValue')} placeholder="0.3" />
+              <Select value={f.windageUnit} onChange={set('windageUnit')} style={{ width: 86, flex: 'none' }}>
+                <option value="MIL">MIL</option>
+                <option value="MOA">MOA</option>
+              </Select>
+            </div>
+          </Field>
+        </Row>
+        <Row>
+          <Field label="DOPE notes" hint="Optional freeform, e.g. hold calls.">
+            <TextInput value={f.dopeElevation} onChange={set('dopeElevation')} placeholder="4.2 MIL up" />
+          </Field>
+          <Field label="Wind notes">
             <TextInput value={f.dopeWindage} onChange={set('dopeWindage')} placeholder="0.3 L" />
           </Field>
         </Row>
@@ -297,8 +330,14 @@ function SessionFormBody({
           </Field>
         </Row>
         <Row>
-          <Field label="Pressure (inHg)">
-            <TextInput inputMode="numeric" value={f.pressure} onChange={setW('pressure')} />
+          <Field label="Pressure (inHg)" hint="Station = raw gauge; absolute = sea-level/altimeter.">
+            <div style={{ display: 'flex', gap: 6 }}>
+              <TextInput inputMode="decimal" value={f.pressure} onChange={setW('pressure')} />
+              <Select value={f.pressureType} onChange={set('pressureType')} style={{ width: 104, flex: 'none' }}>
+                <option value="station">Station</option>
+                <option value="absolute">Absolute</option>
+              </Select>
+            </div>
           </Field>
           <Field label="Light">
             <TextInput value={f.light} onChange={setW('light')} placeholder="Overcast" />
