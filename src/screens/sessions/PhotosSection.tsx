@@ -45,6 +45,7 @@ export function PhotosSection({ sessionId }: { sessionId: string }) {
         ref={inputRef}
         type="file"
         accept="image/*"
+        capture="environment"
         multiple
         style={{ display: 'none' }}
         onChange={(e) => void onFiles(e.target.files)}

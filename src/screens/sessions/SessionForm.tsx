@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { MapPin, Loader, X, Undo2, ChevronDown, ChevronRight } from 'lucide-react'
 import { Screen, ScreenHeader, Button, Field, TextInput, TextArea, Select, Row, SectionLabel } from '../../ui/kit'
 import { useRifle, useBarrels, useAmmunition, useSession } from '../../hooks/useData'
+import { useWakeLock } from '../../hooks/useWakeLock'
 import { createSession, updateSession } from '../../db/repositories/sessions'
 import { fetchCurrentWeather } from '../../lib/weather'
 import { numOrUndef, today } from '../../lib/format'
@@ -62,6 +63,8 @@ function SessionFormBody({
   const barrels = useBarrels(rifleId) ?? []
   const loads = useAmmunition(rifleId) ?? []
   const [busy, setBusy] = useState(false)
+  // Keep the screen awake while logging a course of fire.
+  useWakeLock(true)
 
   const initial = useMemo<FormState>(
     () => ({
@@ -194,7 +197,8 @@ function SessionFormBody({
     } else {
       id = await createSession(data)
     }
-    navigate(`/sessions/${id}`, { replace: true })
+    buzz([12, 30, 12]) // eyes-free "saved" confirmation
+    navigate(`/sessions/${id}`, { replace: true, state: { justSaved: true } })
   }
 
   return (

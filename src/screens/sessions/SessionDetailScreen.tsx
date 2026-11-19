@@ -1,6 +1,6 @@
-import { useState, type ReactNode, type CSSProperties } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Pencil, Trash2 } from 'lucide-react'
+import { useEffect, useState, type ReactNode, type CSSProperties } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { Pencil, Trash2, Check } from 'lucide-react'
 import { Screen, ScreenHeader, Card, Button, Stat, HitRateBadge, SectionLabel } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
 import { ConfirmDialog } from '../../ui/Sheet'
@@ -13,11 +13,22 @@ import { formatDate } from '../../lib/format'
 export function SessionDetailScreen() {
   const { sessionId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const session = useSession(sessionId)
   const rifle = useRifle(session?.rifleId)
   const barrels = useBarrels(session?.rifleId)
   const loads = useAmmunition(session?.rifleId)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [savedToast, setSavedToast] = useState(
+    (location.state as { justSaved?: boolean } | null)?.justSaved ?? false,
+  )
+  useEffect(() => {
+    if (!savedToast) return
+    // Consume the flag so a refresh/back doesn't re-show it, then auto-dismiss.
+    window.history.replaceState({}, '')
+    const t = setTimeout(() => setSavedToast(false), 2200)
+    return () => clearTimeout(t)
+  }, [savedToast])
 
   if (session === undefined) return null
   if (session === null) {
@@ -45,6 +56,11 @@ export function SessionDetailScreen() {
 
   return (
     <Screen>
+      {savedToast && (
+        <div style={toastStyle} role="status">
+          <Check size={15} /> Course of fire logged
+        </div>
+      )}
       <ScreenHeader
         eyebrow={rifle?.name ?? 'Course of Fire'}
         title={title}
@@ -189,4 +205,22 @@ const autoTag: CSSProperties = {
   border: '1px solid var(--ok)',
   borderRadius: 3,
   padding: '1px 5px',
+}
+
+const toastStyle: CSSProperties = {
+  position: 'fixed',
+  top: 'calc(10px + env(safe-area-inset-top))',
+  left: '50%',
+  transform: 'translateX(-50%)',
+  zIndex: 30,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 7,
+  background: 'var(--ok)',
+  color: '#06240f',
+  fontSize: 13,
+  fontWeight: 600,
+  padding: '9px 16px',
+  borderRadius: 999,
+  boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
 }
