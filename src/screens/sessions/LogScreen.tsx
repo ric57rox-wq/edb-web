@@ -1,5 +1,5 @@
-import { useMemo, useState, type CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Plus } from 'lucide-react'
 import { Screen, ScreenHeader, Card, EmptyState, HitRateBadge, TextInput, Button } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
@@ -26,6 +26,15 @@ export function LogScreen() {
     if (quickRifleId) navigate(`/rifles/${quickRifleId}/sessions/new`)
     else navigate('/rifles')
   }
+
+  // Home-screen shortcut (/log?quick=1) jumps straight into a new course of fire.
+  const [params, setParams] = useSearchParams()
+  useEffect(() => {
+    if (params.get('quick') !== '1') return
+    if (rifles == null || sessions == null) return // wait for the target rifle
+    setParams({}, { replace: true })
+    if (quickRifleId) navigate(`/rifles/${quickRifleId}/sessions/new`, { replace: true })
+  }, [params, rifles, sessions, quickRifleId, navigate, setParams])
 
   const filtered = useMemo(() => {
     const list = sessions ?? []

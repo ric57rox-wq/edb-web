@@ -18,10 +18,14 @@ export default defineConfig({
         orientation: 'portrait',
         icons: [
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+          { src: 'icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+        ],
+        shortcuts: [
+          { name: 'Log course of fire', short_name: 'Log', url: '/log?quick=1' },
+          { name: 'My rifles', short_name: 'Rifles', url: '/rifles' },
         ],
       },
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'icon-maskable.svg'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2}'],
       },

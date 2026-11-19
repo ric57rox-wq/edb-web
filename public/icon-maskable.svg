@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="EDB">
+  <!-- Full-bleed background so the platform mask can crop the corners safely. -->
+  <rect width="512" height="512" fill="#171d1a"/>
+  <!-- Reticle scaled into the ~80% maskable safe zone. -->
+  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
+    <circle cx="256" cy="256" r="150" fill="none" stroke="#c08a4e" stroke-width="10"/>
+    <g stroke="#dfe3de" stroke-width="12" stroke-linecap="round">
+      <line x1="256" y1="70" x2="256" y2="190"/>
+      <line x1="256" y1="322" x2="256" y2="442"/>
+      <line x1="70" y1="256" x2="190" y2="256"/>
+      <line x1="322" y1="256" x2="442" y2="256"/>
+    </g>
+    <circle cx="256" cy="256" r="26" fill="#ff7a1a"/>
+  </g>
+</svg>

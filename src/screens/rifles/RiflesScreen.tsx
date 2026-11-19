@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Crosshair } from 'lucide-react'
+import { Plus, Crosshair, Share, Target, FlaskConical, ClipboardList } from 'lucide-react'
 import { Screen, ScreenHeader, Card, Button, EmptyState, HealthBadge } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
 import { RifleForm } from './RifleForm'
@@ -13,6 +13,7 @@ export function RiflesScreen() {
   const allBarrels = useAllBarrels()
   const [adding, setAdding] = useState(false)
   const navigate = useNavigate()
+  const showInstallHint = isIosSafariUninstalled()
 
   const barrelsByRifle = new Map<string, Barrel[]>()
   for (const b of allBarrels ?? []) {
@@ -34,15 +35,50 @@ export function RiflesScreen() {
       <TurretDivider />
 
       {rifles == null ? null : rifles.length === 0 ? (
-        <EmptyState
-          title="No rifles yet"
-          hint="Add your first rifle to start logging barrels, loads, and courses of fire."
-          action={
-            <Button onClick={() => setAdding(true)}>
-              <Plus size={15} /> Add a rifle
-            </Button>
-          }
-        />
+        <>
+          <Card style={{ marginBottom: 12 }}>
+            <div style={introTitle}>How EDB is organized</div>
+            <div style={introStep}>
+              <Crosshair size={15} style={introIcon} />
+              <span>
+                <strong style={introLead}>Rifle</strong> — your firearm and its defaults (scope, zero).
+              </span>
+            </div>
+            <div style={introStep}>
+              <Target size={15} style={introIcon} />
+              <span>
+                <strong style={introLead}>Barrel</strong> — tracks round count &amp; life per barrel.
+              </span>
+            </div>
+            <div style={introStep}>
+              <FlaskConical size={15} style={introIcon} />
+              <span>
+                <strong style={introLead}>Load</strong> — ammo with BC &amp; muzzle velocity for the ballistic solver.
+              </span>
+            </div>
+            <div style={introStep}>
+              <ClipboardList size={15} style={introIcon} />
+              <span>
+                <strong style={introLead}>Course of fire</strong> — each range session: holds, hits, conditions.
+              </span>
+            </div>
+            {showInstallHint && (
+              <div style={installHint}>
+                <Share size={14} style={{ verticalAlign: '-2px', marginRight: 5, color: 'var(--brass)' }} />
+                Install EDB: tap Share, then <strong>Add to Home Screen</strong>.
+              </div>
+            )}
+          </Card>
+          <EmptyState
+            title="No rifles yet"
+            hint="Add your first rifle to start logging barrels, loads, and courses of fire."
+            action={
+              <Button onClick={() => setAdding(true)}>
+                <Plus size={15} /> Add a rifle
+              </Button>
+            }
+          />
+        </>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
           {rifles.map((r) => {
@@ -107,3 +143,43 @@ const footerRow = {
   borderTop: '1px solid var(--line-soft)',
 }
 const footMeta = { color: 'var(--text-dim)', fontSize: 12 }
+
+/** True on an iOS browser that isn't the installed standalone PWA. */
+function isIosSafariUninstalled(): boolean {
+  try {
+    const ua = navigator.userAgent
+    const isIos = /iphone|ipad|ipod/i.test(ua)
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true
+    return isIos && !standalone
+  } catch {
+    return false
+  }
+}
+
+const introTitle: CSSProperties = {
+  fontFamily: 'Rajdhani, sans-serif',
+  fontWeight: 700,
+  fontSize: 16,
+  color: '#f2f4f0',
+  marginBottom: 10,
+}
+const introStep: CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 9,
+  fontSize: 12.5,
+  color: 'var(--text-dim)',
+  lineHeight: 1.5,
+  marginBottom: 8,
+}
+const introIcon: CSSProperties = { color: 'var(--brass)', flex: 'none', marginTop: 1 }
+const introLead: CSSProperties = { color: 'var(--text)' }
+const installHint: CSSProperties = {
+  marginTop: 10,
+  paddingTop: 10,
+  borderTop: '1px solid var(--line-soft)',
+  fontSize: 12,
+  color: 'var(--text-dim)',
+}
