@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode, type CSSProperties } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { MapPin, Loader } from 'lucide-react'
+import { MapPin, Loader, X, Undo2, ChevronDown, ChevronRight } from 'lucide-react'
 import { Screen, ScreenHeader, Button, Field, TextInput, TextArea, Select, Row, SectionLabel } from '../../ui/kit'
 import { useRifle, useBarrels, useAmmunition, useSession } from '../../hooks/useData'
 import { createSession, updateSession } from '../../db/repositories/sessions'
@@ -101,6 +101,21 @@ function SessionFormBody({
 
   const [f, setF] = useState<FormState>(initial)
   const set = (k: string) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }))
+
+  // --- Shot logging: a tap-to-build H/M sequence that auto-tallies hits/misses.
+  const [shots, setShots] = useState<Shot[]>(() => parseInitialShots(existing))
+  function applyShots(next: Shot[]) {
+    setShots(next)
+    const h = next.filter((s) => s === 'H').length
+    const m = next.length - h
+    setF((s) => ({ ...s, hits: String(h), misses: String(m), shotSequence: next.join(' ') }))
+  }
+  const addShot = (k: Shot) => {
+    buzz(k === 'H' ? 18 : [8, 40, 8])
+    applyShots([...shots, k])
+  }
+  const undoShot = () => applyShots(shots.slice(0, -1))
+  const clearShots = () => applyShots([])
 
   const [autoWeather, setAutoWeather] = useState(existing?.weatherSource === 'auto')
   const [geoBusy, setGeoBusy] = useState(false)
@@ -234,41 +249,41 @@ function SessionFormBody({
           </Field>
         </Row>
 
-        <SectionLabel>Stage</SectionLabel>
-        <Row>
-          <Field label="Position">
-            <TextInput value={f.position} onChange={set('position')} placeholder="Prone" />
-          </Field>
-          <Field label="Barricade">
-            <TextInput value={f.barricade} onChange={set('barricade')} placeholder="Bipod" />
-          </Field>
-        </Row>
-        <Row>
-          <Field label="Time limit">
-            <TextInput value={f.timeLimit} onChange={set('timeLimit')} placeholder="90 sec" />
-          </Field>
-          <Field label="Velocity (fps)">
-            <TextInput inputMode="numeric" value={f.velocity} onChange={set('velocity')} placeholder="2710" />
-          </Field>
-        </Row>
-        <Row>
-          <Field label="Scope">
-            <TextInput value={f.scope} onChange={set('scope')} />
-          </Field>
-          <Field label="Suppressor">
-            <TextInput value={f.suppressor} onChange={set('suppressor')} />
-          </Field>
-        </Row>
+        <Collapsible title="Stage &amp; gear">
+          <Row>
+            <Field label="Position">
+              <TextInput value={f.position} onChange={set('position')} placeholder="Prone" />
+            </Field>
+            <Field label="Barricade">
+              <TextInput value={f.barricade} onChange={set('barricade')} placeholder="Bipod" />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Time limit">
+              <TextInput value={f.timeLimit} onChange={set('timeLimit')} placeholder="90 sec" />
+            </Field>
+            <Field label="Velocity (fps)">
+              <TextInput inputMode="numeric" value={f.velocity} onChange={set('velocity')} placeholder="2710" />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Scope">
+              <TextInput value={f.scope} onChange={set('scope')} />
+            </Field>
+            <Field label="Suppressor">
+              <TextInput value={f.suppressor} onChange={set('suppressor')} />
+            </Field>
+          </Row>
+        </Collapsible>
 
         <SectionLabel>Results</SectionLabel>
-        <Row>
-          <Field label="Hits">
-            <TextInput inputMode="numeric" value={f.hits} onChange={set('hits')} />
-          </Field>
-          <Field label="Misses">
-            <TextInput inputMode="numeric" value={f.misses} onChange={set('misses')} />
-          </Field>
-        </Row>
+        <ShotLogger
+          shots={shots}
+          onHit={() => addShot('H')}
+          onMiss={() => addShot('M')}
+          onUndo={undoShot}
+          onClear={clearShots}
+        />
         <Row>
           <Field label="Elevation hold" hint="Confirmed dial/hold — feeds the DOPE card.">
             <div style={{ display: 'flex', gap: 6 }}>
@@ -297,24 +312,20 @@ function SessionFormBody({
             <TextInput value={f.dopeWindage} onChange={set('dopeWindage')} placeholder="0.3 L" />
           </Field>
         </Row>
-        <Field label="Shot sequence" hint="Per-shot notes, e.g. impact calls.">
-          <TextInput value={f.shotSequence} onChange={set('shotSequence')} placeholder="H H M H H" />
-        </Field>
-
-        <SectionLabel
+        <Collapsible
+          title="Weather"
+          defaultOpen={autoWeather || existing?.weatherSource != null}
           right={
             <Button small variant="ghost" onClick={() => void useLocation()} disabled={geoBusy}>
               {geoBusy ? <Loader size={13} /> : <MapPin size={13} />} {autoWeather ? 'Auto' : 'Use location'}
             </Button>
           }
         >
-          Weather
-        </SectionLabel>
-        {geoErr && (
-          <div style={{ color: 'var(--danger)', fontSize: 12, margin: '-4px 2px 10px' }}>{geoErr}</div>
-        )}
-        <Row>
-          <Field label="Temp (°F)">
+          {geoErr && (
+            <div style={{ color: 'var(--danger)', fontSize: 12, margin: '-4px 2px 10px' }}>{geoErr}</div>
+          )}
+          <Row>
+            <Field label="Temp (°F)">
             <TextInput inputMode="numeric" value={f.weatherTemp} onChange={setW('weatherTemp')} />
           </Field>
           <Field label="Wind (mph)">
@@ -343,11 +354,13 @@ function SessionFormBody({
             <TextInput value={f.light} onChange={setW('light')} placeholder="Overcast" />
           </Field>
         </Row>
+        </Collapsible>
 
-        <SectionLabel>Notes</SectionLabel>
-        <Field label="Notes">
-          <TextArea value={f.notes} onChange={set('notes')} />
-        </Field>
+        <Collapsible title="Notes" defaultOpen={!!existing?.notes}>
+          <Field label="Notes">
+            <TextArea value={f.notes} onChange={set('notes')} />
+          </Field>
+        </Collapsible>
 
         <div style={{ display: 'flex', gap: 10, margin: '8px 0 24px' }}>
           <Button variant="secondary" full onClick={() => navigate(-1)}>
@@ -360,4 +373,201 @@ function SessionFormBody({
       </form>
     </Screen>
   )
+}
+
+/* ----------------------------------------------------------- shot logging */
+
+type Shot = 'H' | 'M'
+
+/** Seed the shot array from an existing session's sequence, or from its counts. */
+function parseInitialShots(existing?: Session): Shot[] {
+  const tokens = ((existing?.shotSequence ?? '').toUpperCase().match(/[HM]/g) ?? []) as Shot[]
+  if (tokens.length > 0) return tokens
+  const h = existing?.hits ?? 0
+  const m = existing?.misses ?? 0
+  if (h + m > 0) return [...(Array(h).fill('H') as Shot[]), ...(Array(m).fill('M') as Shot[])]
+  return []
+}
+
+/** Fire a short haptic buzz where supported (no-op otherwise). */
+function buzz(pattern: number | number[]) {
+  try {
+    ;(navigator as Navigator & { vibrate?: (p: number | number[]) => boolean }).vibrate?.(pattern)
+  } catch {
+    /* unsupported / blocked */
+  }
+}
+
+function ShotLogger({
+  shots,
+  onHit,
+  onMiss,
+  onUndo,
+  onClear,
+}: {
+  shots: Shot[]
+  onHit: () => void
+  onMiss: () => void
+  onUndo: () => void
+  onClear: () => void
+}) {
+  const h = shots.filter((s) => s === 'H').length
+  const total = shots.length
+  const m = total - h
+  const rate = total ? Math.round((h / total) * 100) : 0
+  const canEdit = total > 0
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={tallyRow}>
+        <div style={tallyBox}>
+          <div style={{ ...tallyNum, color: 'var(--ok)' }}>{h}</div>
+          <div style={tallyLbl}>HITS</div>
+        </div>
+        <div style={tallyBox}>
+          <div style={{ ...tallyNum, color: 'var(--text-dim)' }}>{m}</div>
+          <div style={tallyLbl}>MISS</div>
+        </div>
+        <div style={tallyBox}>
+          <div style={{ ...tallyNum, color: 'var(--brass)' }}>{total ? `${rate}%` : '—'}</div>
+          <div style={tallyLbl}>HIT RATE</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+        <button type="button" onClick={onHit} style={{ ...bigTap, ...hitTap }}>
+          HIT
+        </button>
+        <button type="button" onClick={onMiss} style={{ ...bigTap, ...missTap }}>
+          MISS
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+        <button type="button" onClick={onUndo} disabled={!canEdit} style={{ ...minorTap, opacity: canEdit ? 1 : 0.4 }}>
+          <Undo2 size={14} /> Undo
+        </button>
+        <button type="button" onClick={onClear} disabled={!canEdit} style={{ ...minorTap, opacity: canEdit ? 1 : 0.4 }}>
+          <X size={14} /> Clear
+        </button>
+      </div>
+      {total > 0 && (
+        <div style={chipWrap}>
+          {shots.map((s, i) => (
+            <span key={i} style={{ ...chip, ...(s === 'H' ? chipHit : chipMiss) }}>
+              {s}
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ color: 'var(--text-faint)', fontSize: 11, margin: '8px 2px 0' }}>
+        Tap each shot as you go — the sequence and hit tally build themselves.
+      </div>
+    </div>
+  )
+}
+
+/** A collapsible section so the quick result is logged first, detail on demand. */
+function Collapsible({
+  title,
+  children,
+  right,
+  defaultOpen = false,
+}: {
+  title: ReactNode
+  children: ReactNode
+  right?: ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={collHead}>
+        <button type="button" onClick={() => setOpen((o) => !o)} style={collToggle}>
+          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <span style={collTitle}>{title}</span>
+        </button>
+        {right}
+      </div>
+      {open && <div style={{ marginTop: 6 }}>{children}</div>}
+    </div>
+  )
+}
+
+const tallyRow: CSSProperties = { display: 'flex', gap: 8 }
+const tallyBox: CSSProperties = {
+  flex: 1,
+  background: 'var(--panel)',
+  border: '1px solid var(--line)',
+  borderRadius: 10,
+  padding: '10px 4px',
+  textAlign: 'center',
+}
+const tallyNum: CSSProperties = { fontFamily: 'Rajdhani, sans-serif', fontWeight: 700, fontSize: 26, lineHeight: 1 }
+const tallyLbl: CSSProperties = {
+  fontFamily: 'JetBrains Mono, monospace',
+  fontSize: 9,
+  letterSpacing: 0.6,
+  color: 'var(--text-faint)',
+  marginTop: 4,
+}
+const bigTap: CSSProperties = {
+  flex: 1,
+  minHeight: 64,
+  borderRadius: 12,
+  border: 'none',
+  fontFamily: 'Rajdhani, sans-serif',
+  fontWeight: 700,
+  fontSize: 22,
+  letterSpacing: 1,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+  touchAction: 'manipulation',
+}
+const hitTap: CSSProperties = { background: 'var(--impact)', color: '#201200' }
+const missTap: CSSProperties = { background: 'var(--panel-2)', color: 'var(--text-dim)', border: '1px solid var(--line)' }
+const minorTap: CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  minHeight: 40,
+  borderRadius: 9,
+  border: '1px solid var(--line)',
+  background: 'transparent',
+  color: 'var(--text-dim)',
+  fontSize: 12.5,
+  cursor: 'pointer',
+}
+const chipWrap: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }
+const chip: CSSProperties = {
+  width: 22,
+  height: 22,
+  borderRadius: 5,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontFamily: 'JetBrains Mono, monospace',
+  fontSize: 11,
+  fontWeight: 700,
+}
+const chipHit: CSSProperties = { background: 'rgba(255,122,26,0.18)', color: 'var(--impact)' }
+const chipMiss: CSSProperties = { background: 'var(--panel-2)', color: 'var(--text-faint)' }
+const collHead: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
+const collToggle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  color: 'var(--brass)',
+  padding: '6px 0',
+  flex: 1,
+  textAlign: 'left',
+}
+const collTitle: CSSProperties = {
+  fontFamily: 'JetBrains Mono, monospace',
+  fontSize: 11,
+  letterSpacing: 1,
+  textTransform: 'uppercase',
+  color: 'var(--brass)',
 }

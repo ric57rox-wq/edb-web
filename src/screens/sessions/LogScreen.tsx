@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search } from 'lucide-react'
-import { Screen, ScreenHeader, Card, EmptyState, HitRateBadge, TextInput } from '../../ui/kit'
+import { Search, Plus } from 'lucide-react'
+import { Screen, ScreenHeader, Card, EmptyState, HitRateBadge, TextInput, Button } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
 import { useSessions, useRifles } from '../../hooks/useData'
 import { roundsFired } from '../../domain/metrics'
@@ -18,6 +18,14 @@ export function LogScreen() {
     for (const r of rifles ?? []) m.set(r.id, r.name)
     return m
   }, [rifles])
+
+  // Quick-log target: the rifle from the most recent session, else the most
+  // recently touched rifle. Lets the Log tab start a course of fire in one tap.
+  const quickRifleId = (sessions && sessions[0]?.rifleId) || (rifles && rifles[0]?.id) || undefined
+  const quickLog = () => {
+    if (quickRifleId) navigate(`/rifles/${quickRifleId}/sessions/new`)
+    else navigate('/rifles')
+  }
 
   const filtered = useMemo(() => {
     const list = sessions ?? []
@@ -55,7 +63,15 @@ export function LogScreen() {
       </div>
 
       {sessions == null ? null : sessions.length === 0 ? (
-        <EmptyState title="No courses of fire yet" hint="Log one from a rifle's page to see it here." />
+        <EmptyState
+          title="No courses of fire yet"
+          hint={quickRifleId ? 'Tap below to log your first one.' : 'Add a rifle first, then log a course of fire.'}
+          action={
+            <Button onClick={quickLog}>
+              <Plus size={15} /> {quickRifleId ? 'Log a course of fire' : 'Add a rifle'}
+            </Button>
+          }
+        />
       ) : filtered.length === 0 ? (
         <EmptyState title="No matches" hint={`Nothing matches “${q}”.`} />
       ) : (
@@ -85,9 +101,34 @@ export function LogScreen() {
           })}
         </div>
       )}
-      <div style={{ height: 16 }} />
+      <div style={{ height: 88 }} />
+
+      {sessions != null && sessions.length > 0 && quickRifleId && (
+        <button type="button" onClick={quickLog} style={fab} aria-label="Log a course of fire">
+          <Plus size={26} strokeWidth={2.4} />
+        </button>
+      )}
     </Screen>
   )
+}
+
+const fab: CSSProperties = {
+  position: 'fixed',
+  bottom: 'calc(76px + env(safe-area-inset-bottom))',
+  left: '50%',
+  transform: 'translateX(min(210px, 42vw))',
+  width: 56,
+  height: 56,
+  borderRadius: 28,
+  background: 'var(--impact)',
+  color: '#201200',
+  border: 'none',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow: '0 6px 18px rgba(0,0,0,0.45)',
+  cursor: 'pointer',
+  zIndex: 11,
 }
 
 const searchWrap = {
