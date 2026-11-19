@@ -1,11 +1,12 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Download, Upload, LogOut, Check, KeyRound } from 'lucide-react'
+import { Download, Upload, LogOut, Check, KeyRound, Sun, Moon } from 'lucide-react'
 import { Screen, ScreenHeader, Card, Button, SectionLabel, Stat, Field, TextInput } from '../ui/kit'
 import { TurretDivider } from '../ui/TurretDivider'
 import { ConfirmDialog } from '../ui/Sheet'
 import { useAuth } from '../auth/AuthProvider'
 import { supabase } from '../lib/supabase'
+import { getTheme, setTheme, type ThemeMode } from '../lib/theme'
 import { exportBackup, importBackup, dataCounts, type BackupFile } from '../db/repositories/backup'
 import { resetLocalUserData } from '../sync/resetLocal'
 import { today } from '../lib/format'
@@ -21,6 +22,12 @@ export function SettingsScreen() {
   const [pw2, setPw2] = useState('')
   const [pwBusy, setPwBusy] = useState(false)
   const [pwMsg, setPwMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [theme, setThemeState] = useState<ThemeMode>(getTheme())
+
+  function chooseTheme(mode: ThemeMode) {
+    setTheme(mode)
+    setThemeState(mode)
+  }
 
   async function savePassword() {
     if (pw.length < 8) {
@@ -84,6 +91,25 @@ export function SettingsScreen() {
     <Screen>
       <ScreenHeader title="Settings" />
       <TurretDivider />
+
+      <SectionLabel>Appearance</SectionLabel>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => chooseTheme('dark')}
+          style={{ ...themeOption, ...(theme === 'dark' ? themeOptionOn : null) }}
+        >
+          <Moon size={16} /> Tactical dark
+        </button>
+        <button
+          type="button"
+          onClick={() => chooseTheme('day')}
+          style={{ ...themeOption, ...(theme === 'day' ? themeOptionOn : null) }}
+        >
+          <Sun size={16} /> Daylight
+        </button>
+      </div>
+      <div style={hint}>Daylight is a high-contrast light scheme for bright sun at the range.</div>
 
       <SectionLabel>Data</SectionLabel>
       <Card>
@@ -219,4 +245,25 @@ const appInfo: CSSProperties = {
   fontFamily: 'JetBrains Mono, monospace',
   letterSpacing: 0.5,
   marginTop: 28,
+}
+
+const themeOption: CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  minHeight: 46,
+  borderRadius: 10,
+  border: '1px solid var(--line)',
+  background: 'var(--panel)',
+  color: 'var(--text-dim)',
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+const themeOptionOn: CSSProperties = {
+  borderColor: 'var(--brass)',
+  color: 'var(--brass)',
+  background: 'var(--panel-2)',
 }

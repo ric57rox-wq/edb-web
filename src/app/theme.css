@@ -23,8 +23,36 @@
   color-scheme: dark;
 }
 
+/* ===== Daylight: high-contrast light scheme for bright-sun range use ===== */
+:root[data-theme='day'] {
+  --bg: #e6e8e2;
+  --panel: #ffffff;
+  --panel-2: #edefe9;
+  --line: #c0c6bb;
+  --line-soft: #d5d9ce;
+  --text: #15201a;
+  --text-dim: #45504a;
+  --text-faint: #68726a;
+  --brass: #8a5a1e;
+  --brass-dim: #6e471a;
+  --impact: #e4620f;
+  --impact-dim: #a3360a;
+  --ok: #2f7d45;
+  --warn: #8a5f12;
+  --danger: #b23b2a;
+
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* Visible keyboard/stylus focus everywhere (there were no focus states). */
+:focus-visible {
+  outline: 2px solid var(--impact);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 html,

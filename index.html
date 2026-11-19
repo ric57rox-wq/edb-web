@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#171d1a" />
+    <script>
+      // Apply the saved theme before first paint to avoid a flash.
+      try {
+        var v = localStorage.getItem('edb-theme')
+        if (!v) v = window.matchMedia('(prefers-color-scheme: light)').matches ? 'day' : 'dark'
+        if (v === 'day') {
+          document.documentElement.setAttribute('data-theme', 'day')
+          var m = document.querySelector('meta[name="theme-color"]')
+          if (m) m.setAttribute('content', '#e6e8e2')
+        }
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <title>EDB — Electronic Data Book</title>
