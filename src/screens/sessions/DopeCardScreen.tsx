@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useParams } from 'react-router-dom'
-import { Share2, Copy, Check, Crosshair, Gauge } from 'lucide-react'
-import { Screen, ScreenHeader, Card, Button, Field, Select, EmptyState, SectionLabel } from '../../ui/kit'
+import { Share2, Copy, Check, Crosshair, Gauge, MapPin, Loader } from 'lucide-react'
+import { Screen, ScreenHeader, Card, Button, Field, TextInput, Select, Row, EmptyState, SectionLabel } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
 import { useRifle, useAmmunition, useBarrels, useSessionsForRifle } from '../../hooks/useData'
 import { buildDopeCard } from '../../domain/dope'
@@ -11,8 +11,10 @@ import {
   trueUpFromSessions,
   type PredictedCard,
 } from '../../domain/dopePredict'
+import { densityAltitudeFt, type Atmosphere } from '../../domain/ballistics'
 import { updateAmmunition } from '../../db/repositories/ammunition'
-import { formatDate } from '../../lib/format'
+import { fetchCurrentWeather } from '../../lib/weather'
+import { formatDate, numOrUndef } from '../../lib/format'
 import type { AngularUnit } from '../../domain/types'
 
 const ALL = 'all'
@@ -28,6 +30,13 @@ export function DopeCardScreen() {
   const [unit, setUnit] = useState<AngularUnit>('MIL')
   const [copied, setCopied] = useState(false)
   const [savedMv, setSavedMv] = useState(false)
+  // A4 — solve for standard vs. current conditions.
+  const [condMode, setCondMode] = useState<'standard' | 'current'>('standard')
+  const [cTemp, setCTemp] = useState('')
+  const [cPressure, setCPressure] = useState('')
+  const [cHumidity, setCHumidity] = useState('')
+  const [geoBusy, setGeoBusy] = useState(false)
+  const [geoErr, setGeoErr] = useState<string | null>(null)
 
   // Default to the rifle's turret unit and the first load once data loads.
   useEffect(() => {
@@ -40,6 +49,36 @@ export function DopeCardScreen() {
   const selectedLoad = loads.find((l) => l.id === loadId)
   const twistDir = barrels.find((b) => b.twistDir)?.twistDir
   const solvable = canSolve(selectedLoad)
+
+  const atmosphere: Atmosphere | undefined =
+    condMode === 'current'
+      ? {
+          tempF: numOrUndef(cTemp),
+          pressureInHg: numOrUndef(cPressure),
+          humidityPct: numOrUndef(cHumidity),
+          pressureType: 'station',
+        }
+      : undefined
+  const densityAlt =
+    condMode === 'current' && (cTemp || cPressure || cHumidity)
+      ? Math.round(densityAltitudeFt(atmosphere!))
+      : null
+
+  async function useConditions() {
+    setGeoBusy(true)
+    setGeoErr(null)
+    try {
+      const w = await fetchCurrentWeather()
+      if (w.temp != null) setCTemp(String(w.temp))
+      if (w.pressure != null) setCPressure(String(w.pressure))
+      if (w.humidity != null) setCHumidity(String(w.humidity))
+      setCondMode('current')
+    } catch (e) {
+      setGeoErr(e instanceof Error ? e.message : 'Weather lookup failed.')
+    } finally {
+      setGeoBusy(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     if (loadId === ALL) return sessions
@@ -54,14 +93,17 @@ export function DopeCardScreen() {
       load: selectedLoad,
       sessions: filtered,
       outputUnit: unit,
+      atmosphere,
       twistDir,
     })
-  }, [rifle, selectedLoad, solvable, filtered, unit, twistDir])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rifle, selectedLoad, solvable, filtered, unit, twistDir, condMode, cTemp, cPressure, cHumidity])
 
   const trueUp = useMemo(() => {
     if (!rifle || !selectedLoad || !solvable) return null
-    return trueUpFromSessions({ rifle, load: selectedLoad, sessions: filtered, outputUnit: unit, twistDir })
-  }, [rifle, selectedLoad, solvable, filtered, unit, twistDir])
+    return trueUpFromSessions({ rifle, load: selectedLoad, sessions: filtered, outputUnit: unit, atmosphere, twistDir })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rifle, selectedLoad, solvable, filtered, unit, twistDir, condMode, cTemp, cPressure, cHumidity])
 
   const legacy = useMemo(() => buildDopeCard(filtered), [filtered])
   const loadLabel =
@@ -149,9 +191,53 @@ export function DopeCardScreen() {
       {predicted ? (
         <>
           <div style={{ color: 'var(--text-faint)', fontSize: 11, margin: '0 2px 10px' }}>
-            Predicted from this load's BC &amp; muzzle velocity at standard conditions (sea level,
-            59&deg;F). Wind column = {predicted.referenceWindMph} mph full-value.
+            Predicted from this load's BC &amp; muzzle velocity
+            {condMode === 'current' ? ' at the conditions below' : ' at standard conditions (sea level, 59°F)'}.
+            Wind column = {predicted.referenceWindMph} mph full-value.
           </div>
+
+          <SectionLabel
+            right={
+              <Button small variant="ghost" onClick={() => void useConditions()} disabled={geoBusy}>
+                {geoBusy ? <Loader size={13} /> : <MapPin size={13} />} Use location
+              </Button>
+            }
+          >
+            Conditions
+          </SectionLabel>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+            {(['standard', 'current'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setCondMode(m)}
+                style={{ ...condBtn, ...(condMode === m ? condBtnOn : null) }}
+              >
+                {m === 'standard' ? 'Standard' : 'Current'}
+              </button>
+            ))}
+            {densityAlt != null && (
+              <div style={daBox} title="Density altitude">
+                DA <strong style={{ color: 'var(--brass)' }}>{densityAlt.toLocaleString()} ft</strong>
+              </div>
+            )}
+          </div>
+          {geoErr && <div style={{ color: 'var(--danger)', fontSize: 12, margin: '-4px 2px 10px' }}>{geoErr}</div>}
+          {condMode === 'current' && (
+            <Row>
+              <Field label="Temp (°F)">
+                <TextInput inputMode="decimal" value={cTemp} onChange={(e) => setCTemp(e.target.value)} placeholder="59" />
+              </Field>
+              <Field label="Pressure (inHg)" hint="Station (actual) pressure.">
+                <TextInput inputMode="decimal" value={cPressure} onChange={(e) => setCPressure(e.target.value)} placeholder="29.92" />
+              </Field>
+            </Row>
+          )}
+          {condMode === 'current' && (
+            <Field label="Humidity (%)">
+              <TextInput inputMode="numeric" value={cHumidity} onChange={(e) => setCHumidity(e.target.value)} placeholder="50" />
+            </Field>
+          )}
 
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ ...rowStyle, ...headRow }}>
@@ -356,4 +442,27 @@ const unitBtnOn: CSSProperties = {
   background: 'var(--brass)',
   color: '#201200',
   borderColor: 'var(--brass)',
+}
+const condBtn: CSSProperties = {
+  fontFamily: 'JetBrains Mono, monospace',
+  fontSize: 11.5,
+  fontWeight: 700,
+  letterSpacing: 0.5,
+  padding: '9px 14px',
+  borderRadius: 7,
+  border: '1px solid var(--line)',
+  background: 'var(--panel)',
+  color: 'var(--text-dim)',
+  cursor: 'pointer',
+}
+const condBtnOn: CSSProperties = { background: 'var(--brass)', color: '#201200', borderColor: 'var(--brass)' }
+const daBox: CSSProperties = {
+  marginLeft: 'auto',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 5,
+  fontFamily: 'JetBrains Mono, monospace',
+  fontSize: 11.5,
+  color: 'var(--text-dim)',
+  alignSelf: 'center',
 }
