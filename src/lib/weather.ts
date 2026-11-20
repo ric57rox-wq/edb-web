@@ -38,6 +38,9 @@ function getPosition(): Promise<GeolocationPosition> {
 }
 
 export async function fetchCurrentWeather(): Promise<WeatherReading> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new Error("You're offline — enter conditions manually.")
+  }
   const pos = await getPosition()
   const { latitude, longitude } = pos.coords
   const params = new URLSearchParams({

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useParams } from 'react-router-dom'
-import { Share2, Copy, Check, Crosshair, Gauge, MapPin, Loader, Wind, ShieldAlert } from 'lucide-react'
+import { Share2, Copy, Check, Crosshair, Gauge, MapPin, Loader, Wind, ShieldAlert, FileDown, Printer } from 'lucide-react'
 import { Screen, ScreenHeader, Card, Button, Field, TextInput, Select, Row, EmptyState, SectionLabel } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
 import { useRifle, useAmmunition, useBarrels, useSessionsForRifle } from '../../hooks/useData'
@@ -14,6 +14,7 @@ import {
 } from '../../domain/dopePredict'
 import { densityAltitudeFt, solve, type Atmosphere } from '../../domain/ballistics'
 import { summarizeTrust, rowConfidence, type TrustSummary } from '../../domain/trust'
+import { rangeCardCsv, rangeCardHtml, downloadText, openPrintableCard } from '../../lib/rangeCard'
 import { updateAmmunition } from '../../db/repositories/ammunition'
 import { fetchCurrentWeather } from '../../lib/weather'
 import { formatDate, numOrUndef } from '../../lib/format'
@@ -165,6 +166,15 @@ export function DopeCardScreen() {
       }
     }
     await copy()
+  }
+
+  function exportCsv() {
+    if (!predicted) return
+    downloadText(`${slugify(rifle!.name)}-dope.csv`, 'text/csv', rangeCardCsv(rifle!.name, loadLabel, predicted))
+  }
+  function printCard() {
+    if (!predicted) return
+    openPrintableCard(`${slugify(rifle!.name)}-dope.html`, rangeCardHtml(rifle!.name, loadLabel, predicted))
   }
 
   async function applyTrueUp() {
@@ -393,12 +403,20 @@ export function DopeCardScreen() {
             </>
           )}
 
-          <div style={{ display: 'flex', gap: 10, margin: '16px 0 24px' }}>
+          <div style={{ display: 'flex', gap: 10, margin: '16px 0 10px' }}>
             <Button variant="secondary" full onClick={() => void copy()}>
               {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'Copied' : 'Copy'}
             </Button>
             <Button full onClick={() => void share()}>
               <Share2 size={15} /> Share
+            </Button>
+          </div>
+          <div style={{ display: 'flex', gap: 10, margin: '0 0 24px' }}>
+            <Button variant="secondary" full onClick={exportCsv}>
+              <FileDown size={15} /> CSV
+            </Button>
+            <Button variant="secondary" full onClick={printCard}>
+              <Printer size={15} /> Range card
             </Button>
           </div>
         </>
@@ -490,6 +508,9 @@ function TrustBanner({ trust, maxRowYd }: { trust: TrustSummary; maxRowYd?: numb
 
 function fmt(v: number, unit: AngularUnit): string {
   return unit === 'MOA' ? v.toFixed(2) : v.toFixed(1)
+}
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'rifle'
 }
 function fmtSigned(v: number, unit: AngularUnit): string {
   const s = fmt(Math.abs(v), unit)

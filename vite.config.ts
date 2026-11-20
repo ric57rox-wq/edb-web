@@ -28,6 +28,10 @@ export default defineConfig({
       includeAssets: ['icon.svg', 'icon-maskable.svg'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2}'],
+        // Offline-first: serve the cached app shell for any navigation so a cold
+        // home-screen launch works with no signal at the range.
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api/],
       },
     }),
   ],
