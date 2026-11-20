@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Sheet } from '../../ui/Sheet'
 import { Button, Field, TextInput, TextArea, Row, Select, SectionLabel } from '../../ui/kit'
 import { createAmmunition, updateAmmunition } from '../../db/repositories/ammunition'
+import { useRifle } from '../../hooks/useData'
+import { factoryLoads, prefillFromFactory, FACTORY_LOADS } from '../../domain/loadLibrary'
 import { numOrUndef } from '../../lib/format'
 import type { Ammunition, DragModel } from '../../domain/types'
 
@@ -42,6 +44,26 @@ function AmmoFormBody({
   const [mvTempSensitivity, setMvTempSensitivity] = useState(existing?.mvTempSensitivity != null ? String(existing.mvTempSensitivity) : '')
   const [notes, setNotes] = useState(existing?.notes ?? '')
   const [busy, setBusy] = useState(false)
+  const [pickedFactory, setPickedFactory] = useState(false)
+
+  // Factory-load picker — pre-fills the ballistic fields so the DOPE card works
+  // on first use. Filter to the rifle's caliber when it matches our catalog,
+  // else offer the whole (Hornady .308 Win) list.
+  const rifle = useRifle(rifleId)
+  const matches = factoryLoads(rifle?.caliber)
+  const catalog = matches.length > 0 ? matches : FACTORY_LOADS
+
+  function applyFactory(id: string) {
+    const load = catalog.find((l) => l.id === id)
+    if (!load) return
+    const p = prefillFromFactory(load)
+    if (!label.trim()) setLabel(p.label)
+    setBulletWeight(String(p.bulletWeight))
+    setBc(String(p.bc))
+    setBcModel(p.bcModel)
+    setMuzzleVelocity(String(p.muzzleVelocity))
+    setPickedFactory(true)
+  }
 
   async function save() {
     if (!label.trim() || busy) return
@@ -72,7 +94,32 @@ function AmmoFormBody({
         <TextInput value={label} onChange={(e) => setLabel(e.target.value)} placeholder="140 ELD-M / H4350" autoFocus required />
       </Field>
 
+      <Field
+        label="Start from a factory load"
+        hint="Fills the ballistics below. Advertised figures — confirm against the box and true the MV."
+      >
+        <Select
+          value=""
+          onChange={(e) => {
+            if (e.target.value) applyFactory(e.target.value)
+          }}
+        >
+          <option value="">— pick to pre-fill —</option>
+          {catalog.map((l) => (
+            <option key={l.id} value={l.id}>
+              Hornady {l.caliber} · {l.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
       <SectionLabel>Ballistics</SectionLabel>
+      {pickedFactory && (
+        <div style={{ color: 'var(--text-faint)', fontSize: 11, margin: '-4px 2px 10px' }}>
+          Pre-filled from a factory load. Muzzle velocity is barrel-dependent — confirm over a
+          chronograph or true it from your logged holds on the DOPE card.
+        </div>
+      )}
       <Row>
         <Field label="Bullet (gr)">
           <TextInput inputMode="numeric" value={bulletWeight} onChange={(e) => setBulletWeight(e.target.value)} placeholder="140" />
