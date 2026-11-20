@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode, type CSSProperties } from 'react'
+import { useMemo, useState, type ReactNode, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapPin, Loader, X, Undo2, ChevronDown, ChevronRight } from 'lucide-react'
 import { Screen, ScreenHeader, Button, Field, TextInput, TextArea, Select, Row, SectionLabel } from '../../ui/kit'
@@ -7,6 +7,7 @@ import { useWakeLock } from '../../hooks/useWakeLock'
 import { createSession, updateSession } from '../../db/repositories/sessions'
 import { fetchCurrentWeather } from '../../lib/weather'
 import { numOrUndef, today } from '../../lib/format'
+import { groupStats } from '../../domain/group'
 import type { Session, AngularUnit } from '../../domain/types'
 
 type FormState = Record<string, string>
@@ -105,20 +106,29 @@ function SessionFormBody({
   const [f, setF] = useState<FormState>(initial)
   const set = (k: string) => (e: { target: { value: string } }) => setF((s) => ({ ...s, [k]: e.target.value }))
 
-  // --- Shot logging: a tap-to-build H/M sequence that auto-tallies hits/misses.
-  const [shots, setShots] = useState<Shot[]>(() => parseInitialShots(existing))
-  function applyShots(next: Shot[]) {
-    setShots(next)
-    const h = next.filter((s) => s === 'H').length
+  // --- Shot logging: one ordered list of entries. A fast H/M tap is a
+  // position-less entry; tapping the target pad adds a positioned impact. Both
+  // auto-tally hits/misses/shotSequence; positioned entries also feed group/zero.
+  const [entries, setEntries] = useState<Entry[]>(() => parseInitialEntries(existing))
+  const [spanMoa, setSpanMoa] = useState(String(existing?.targetSpanMoa ?? 10))
+  const [plotMode, setPlotMode] = useState<'H' | 'M'>('H')
+  function applyEntries(next: Entry[]) {
+    setEntries(next)
+    const h = next.filter((e) => e.hit).length
     const m = next.length - h
-    setF((s) => ({ ...s, hits: String(h), misses: String(m), shotSequence: next.join(' ') }))
+    const seq = next.map((e) => (e.hit ? 'H' : 'M')).join(' ')
+    setF((s) => ({ ...s, hits: String(h), misses: String(m), shotSequence: seq }))
   }
-  const addShot = (k: Shot) => {
-    buzz(k === 'H' ? 18 : [8, 40, 8])
-    applyShots([...shots, k])
+  const addTally = (hit: boolean) => {
+    buzz(hit ? 18 : [8, 40, 8])
+    applyEntries([...entries, { hit }])
   }
-  const undoShot = () => applyShots(shots.slice(0, -1))
-  const clearShots = () => applyShots([])
+  const addImpact = (x: number, y: number) => {
+    buzz(plotMode === 'H' ? 18 : [8, 40, 8])
+    applyEntries([...entries, { hit: plotMode === 'H', x, y }])
+  }
+  const undoShot = () => applyEntries(entries.slice(0, -1))
+  const clearShots = () => applyEntries([])
 
   const [autoWeather, setAutoWeather] = useState(existing?.weatherSource === 'auto')
   const [geoBusy, setGeoBusy] = useState(false)
@@ -153,6 +163,9 @@ function SessionFormBody({
   async function save() {
     if (busy) return
     setBusy(true)
+    const positionedImpacts = entries
+      .filter((e) => e.x != null && e.y != null)
+      .map((e) => ({ x: e.x!, y: e.y!, hit: e.hit }))
     const weatherTouched = [f.weatherTemp, f.windSpeed, f.windDir, f.humidity, f.pressure, f.light].some(
       (v) => v.trim() !== '',
     )
@@ -180,6 +193,8 @@ function SessionFormBody({
       hits: numOrUndef(f.hits) ?? 0,
       misses: numOrUndef(f.misses) ?? 0,
       shotSequence: f.shotSequence.trim() || undefined,
+      impacts: positionedImpacts.length ? positionedImpacts : undefined,
+      targetSpanMoa: positionedImpacts.length ? (numOrUndef(spanMoa) ?? 10) : undefined,
       weatherTemp: numOrUndef(f.weatherTemp),
       windSpeed: numOrUndef(f.windSpeed),
       windDir: f.windDir.trim() || undefined,
@@ -282,9 +297,15 @@ function SessionFormBody({
 
         <SectionLabel>Results</SectionLabel>
         <ShotLogger
-          shots={shots}
-          onHit={() => addShot('H')}
-          onMiss={() => addShot('M')}
+          entries={entries}
+          spanMoa={spanMoa}
+          onSpanChange={setSpanMoa}
+          plotMode={plotMode}
+          onPlotMode={setPlotMode}
+          distance={numOrUndef(f.distance)}
+          onHit={() => addTally(true)}
+          onMiss={() => addTally(false)}
+          onPlot={addImpact}
           onUndo={undoShot}
           onClear={clearShots}
         />
@@ -381,15 +402,26 @@ function SessionFormBody({
 
 /* ----------------------------------------------------------- shot logging */
 
-type Shot = 'H' | 'M'
+/** One logged shot: a tally (hit only) or a positioned impact (hit + x/y). */
+type Entry = { hit: boolean; x?: number; y?: number }
 
-/** Seed the shot array from an existing session's sequence, or from its counts. */
-function parseInitialShots(existing?: Session): Shot[] {
-  const tokens = ((existing?.shotSequence ?? '').toUpperCase().match(/[HM]/g) ?? []) as Shot[]
-  if (tokens.length > 0) return tokens
+/**
+ * Seed the entry list: from the saved impacts when present (so positions edit),
+ * else position-less from the shot sequence, else from the hit/miss counts.
+ */
+function parseInitialEntries(existing?: Session): Entry[] {
+  if (existing?.impacts && existing.impacts.length > 0) {
+    return existing.impacts.map((i) => ({ hit: i.hit, x: i.x, y: i.y }))
+  }
+  const tokens = ((existing?.shotSequence ?? '').toUpperCase().match(/[HM]/g) ?? []) as ('H' | 'M')[]
+  if (tokens.length > 0) return tokens.map((t) => ({ hit: t === 'H' }))
   const h = existing?.hits ?? 0
   const m = existing?.misses ?? 0
-  if (h + m > 0) return [...(Array(h).fill('H') as Shot[]), ...(Array(m).fill('M') as Shot[])]
+  if (h + m > 0)
+    return [
+      ...Array.from({ length: h }, () => ({ hit: true })),
+      ...Array.from({ length: m }, () => ({ hit: false })),
+    ]
   return []
 }
 
@@ -403,23 +435,39 @@ function buzz(pattern: number | number[]) {
 }
 
 function ShotLogger({
-  shots,
+  entries,
+  spanMoa,
+  onSpanChange,
+  plotMode,
+  onPlotMode,
+  distance,
   onHit,
   onMiss,
+  onPlot,
   onUndo,
   onClear,
 }: {
-  shots: Shot[]
+  entries: Entry[]
+  spanMoa: string
+  onSpanChange: (v: string) => void
+  plotMode: 'H' | 'M'
+  onPlotMode: (m: 'H' | 'M') => void
+  distance?: number
   onHit: () => void
   onMiss: () => void
+  onPlot: (x: number, y: number) => void
   onUndo: () => void
   onClear: () => void
 }) {
-  const h = shots.filter((s) => s === 'H').length
-  const total = shots.length
+  const h = entries.filter((e) => e.hit).length
+  const total = entries.length
   const m = total - h
   const rate = total ? Math.round((h / total) * 100) : 0
   const canEdit = total > 0
+  const impacts = entries.filter((e) => e.x != null && e.y != null).map((e) => ({ x: e.x!, y: e.y!, hit: e.hit }))
+  const span = Number(spanMoa) || 10
+  const stats = groupStats(impacts, span, distance)
+  const [plotOpen, setPlotOpen] = useState(impacts.length > 0)
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={tallyRow}>
@@ -454,16 +502,129 @@ function ShotLogger({
       </div>
       {total > 0 && (
         <div style={chipWrap}>
-          {shots.map((s, i) => (
-            <span key={i} style={{ ...chip, ...(s === 'H' ? chipHit : chipMiss) }}>
-              {s}
+          {entries.map((e, i) => (
+            <span
+              key={i}
+              style={{ ...chip, ...(e.hit ? chipHit : chipMiss), ...(e.x != null ? chipPlotted : null) }}
+              title={e.x != null ? 'plotted on target' : undefined}
+            >
+              {e.hit ? 'H' : 'M'}
             </span>
           ))}
         </div>
       )}
-      <div style={{ color: 'var(--text-faint)', fontSize: 11, margin: '8px 2px 0' }}>
-        Tap each shot as you go — the sequence and hit tally build themselves.
+
+      {/* Optional: plot each shot's point of impact for group size & zero. */}
+      <div style={{ marginTop: 10 }}>
+        <button type="button" onClick={() => setPlotOpen((o) => !o)} style={collToggle}>
+          {plotOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <span style={collTitle}>Plot impacts on target{impacts.length ? ` · ${impacts.length}` : ' (optional)'}</span>
+        </button>
       </div>
+      {plotOpen && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            {(['H', 'M'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => onPlotMode(mode)}
+                style={{ ...plotModeBtn, ...(plotMode === mode ? (mode === 'H' ? plotModeHitOn : plotModeMissOn) : null) }}
+              >
+                Plot {mode === 'H' ? 'HIT' : 'MISS'}
+              </button>
+            ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+              <span style={{ color: 'var(--text-faint)', fontSize: 11 }}>Span</span>
+              <TextInput
+                inputMode="numeric"
+                value={spanMoa}
+                onChange={(e) => onSpanChange(e.target.value)}
+                style={{ width: 54, textAlign: 'center', padding: '6px 4px' }}
+              />
+              <span style={{ color: 'var(--text-faint)', fontSize: 11 }}>MOA</span>
+            </div>
+          </div>
+          <TargetPad impacts={impacts} onPlot={onPlot} />
+          {stats && (
+            <div style={groupReadout}>
+              <span>
+                Group <strong style={{ color: '#f2f4f0' }}>{stats.extremeSpreadMoa.toFixed(1)} MOA</strong>
+                {stats.extremeSpreadIn != null && ` · ${stats.extremeSpreadIn.toFixed(1)}"`}
+              </span>
+              <span>
+                Center{' '}
+                <strong style={{ color: stats.centerOffsetMoa < 0.25 ? 'var(--ok)' : 'var(--brass)' }}>
+                  {stats.centerOffsetMoa.toFixed(1)} MOA
+                </strong>{' '}
+                off aim
+              </span>
+            </div>
+          )}
+          <div style={{ color: 'var(--text-faint)', fontSize: 11, margin: '6px 2px 0' }}>
+            Tap the target where each shot landed. Rings are {(span / 4).toFixed(1)} MOA apart. Positioned shots
+            also count in the tally above.
+          </div>
+        </div>
+      )}
+
+      <div style={{ color: 'var(--text-faint)', fontSize: 11, margin: '8px 2px 0' }}>
+        Tap HIT/MISS as you go, or plot each shot on the target — the tally builds itself.
+      </div>
+    </div>
+  )
+}
+
+/** Tap-to-plot target: a square diagram with concentric rings; dots are impacts. */
+function TargetPad({
+  impacts,
+  onPlot,
+}: {
+  impacts: { x: number; y: number; hit: boolean }[]
+  onPlot: (x: number, y: number) => void
+}) {
+  function handleClick(e: ReactMouseEvent<SVGSVGElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const px = (e.clientX - rect.left) / rect.width
+    const py = (e.clientY - rect.top) / rect.height
+    const x = Math.max(-1, Math.min(1, px * 2 - 1))
+    const y = Math.max(-1, Math.min(1, -(py * 2 - 1))) // up-positive
+    onPlot(Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000)
+  }
+  // Group centroid (in diagram fractions) to mark the group center vs. aim.
+  const cx = impacts.length ? impacts.reduce((s, i) => s + i.x, 0) / impacts.length : 0
+  const cy = impacts.length ? impacts.reduce((s, i) => s + i.y, 0) / impacts.length : 0
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <svg
+        viewBox="-1 -1 2 2"
+        onClick={handleClick}
+        style={{ width: '100%', maxWidth: 280, aspectRatio: '1 / 1', touchAction: 'manipulation', cursor: 'crosshair' }}
+      >
+        <rect x={-1} y={-1} width={2} height={2} rx={0.06} fill="var(--panel)" stroke="var(--line)" strokeWidth={0.01} />
+        {[0.25, 0.5, 0.75, 1].map((r) => (
+          <circle key={r} cx={0} cy={0} r={r} fill="none" stroke="var(--line)" strokeWidth={0.008} />
+        ))}
+        <line x1={-1} y1={0} x2={1} y2={0} stroke="var(--line-soft)" strokeWidth={0.006} />
+        <line x1={0} y1={-1} x2={0} y2={1} stroke="var(--line-soft)" strokeWidth={0.006} />
+        {impacts.map((i, idx) => (
+          <circle
+            key={idx}
+            cx={i.x}
+            cy={-i.y}
+            r={0.05}
+            fill={i.hit ? 'var(--impact)' : 'transparent'}
+            stroke={i.hit ? 'none' : 'var(--text-dim)'}
+            strokeWidth={0.014}
+          />
+        ))}
+        {impacts.length > 1 && (
+          <g>
+            <line x1={cx - 0.09} y1={-cy} x2={cx + 0.09} y2={-cy} stroke="var(--brass)" strokeWidth={0.012} />
+            <line x1={cx} y1={-cy - 0.09} x2={cx} y2={-cy + 0.09} stroke="var(--brass)" strokeWidth={0.012} />
+          </g>
+        )}
+      </svg>
     </div>
   )
 }
@@ -555,6 +716,35 @@ const chip: CSSProperties = {
 }
 const chipHit: CSSProperties = { background: 'rgba(255,122,26,0.18)', color: 'var(--impact)' }
 const chipMiss: CSSProperties = { background: 'var(--panel-2)', color: 'var(--text-faint)' }
+const chipPlotted: CSSProperties = { outline: '1px solid var(--brass)', outlineOffset: -1 }
+const plotModeBtn: CSSProperties = {
+  flex: '0 0 auto',
+  padding: '8px 12px',
+  borderRadius: 8,
+  border: '1px solid var(--line)',
+  background: 'var(--panel)',
+  color: 'var(--text-dim)',
+  fontFamily: 'JetBrains Mono, monospace',
+  fontSize: 11.5,
+  fontWeight: 700,
+  letterSpacing: 0.5,
+  cursor: 'pointer',
+}
+const plotModeHitOn: CSSProperties = { background: 'var(--impact)', color: '#201200', borderColor: 'var(--impact)' }
+const plotModeMissOn: CSSProperties = { background: 'var(--panel-2)', color: 'var(--text)', borderColor: 'var(--text-dim)' }
+const groupReadout: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 10,
+  marginTop: 8,
+  padding: '8px 12px',
+  background: 'var(--panel)',
+  border: '1px solid var(--line)',
+  borderRadius: 8,
+  fontFamily: 'JetBrains Mono, monospace',
+  fontSize: 12,
+  color: 'var(--text-dim)',
+}
 const collHead: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
 const collToggle: CSSProperties = {
   display: 'flex',

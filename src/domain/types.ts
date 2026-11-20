@@ -73,6 +73,17 @@ export interface Ammunition extends SyncFields {
 
 export type WeatherSource = 'manual' | 'auto';
 
+/**
+ * A single shot's point of impact on the target diagram. `x`/`y` are fractions
+ * of the diagram HALF-span from center, in [-1, 1] (x right-positive, y
+ * up-positive). Scale to real angle with the session's `targetSpanMoa`.
+ */
+export interface Impact {
+  x: number;
+  y: number;
+  hit: boolean;
+}
+
 /** A course of fire. */
 export interface Session extends SyncFields {
   rifleId: string;
@@ -100,6 +111,10 @@ export interface Session extends SyncFields {
   hits: number;
   misses: number;
   shotSequence?: string;
+  /** Per-shot points of impact on the target diagram (optional, for group/zero). */
+  impacts?: Impact[];
+  /** Full width of the impact diagram in MOA — the scale for group/zero math. */
+  targetSpanMoa?: number;
   weatherTemp?: number;
   windSpeed?: number;
   windDir?: string;
