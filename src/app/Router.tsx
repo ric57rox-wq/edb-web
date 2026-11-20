@@ -3,6 +3,7 @@ import { AppShell } from './AppShell'
 import { RiflesScreen } from '../screens/rifles/RiflesScreen'
 import { RifleDetailScreen } from '../screens/rifles/RifleDetailScreen'
 import { SessionForm } from '../screens/sessions/SessionForm'
+import { StageRunScreen } from '../screens/sessions/StageRunScreen'
 import { SessionDetailScreen } from '../screens/sessions/SessionDetailScreen'
 import { DopeCardScreen } from '../screens/sessions/DopeCardScreen'
 import { LogScreen } from '../screens/sessions/LogScreen'
@@ -18,6 +19,7 @@ export function Router() {
           <Route path="/rifles" element={<RiflesScreen />} />
           <Route path="/rifles/:rifleId" element={<RifleDetailScreen />} />
           <Route path="/rifles/:rifleId/sessions/new" element={<SessionForm />} />
+          <Route path="/rifles/:rifleId/stage/new" element={<StageRunScreen />} />
           <Route path="/rifles/:rifleId/dope" element={<DopeCardScreen />} />
           <Route path="/sessions/:sessionId" element={<SessionDetailScreen />} />
           <Route path="/sessions/:sessionId/edit" element={<SessionForm />} />

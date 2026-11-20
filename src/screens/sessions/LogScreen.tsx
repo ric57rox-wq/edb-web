@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Target } from 'lucide-react'
 import { Screen, ScreenHeader, Card, EmptyState, HitRateBadge, TextInput, Button } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
 import { useSessions, useRifles } from '../../hooks/useData'
@@ -24,6 +24,10 @@ export function LogScreen() {
   const quickRifleId = (sessions && sessions[0]?.rifleId) || (rifles && rifles[0]?.id) || undefined
   const quickLog = () => {
     if (quickRifleId) navigate(`/rifles/${quickRifleId}/sessions/new`)
+    else navigate('/rifles')
+  }
+  const stageLog = () => {
+    if (quickRifleId) navigate(`/rifles/${quickRifleId}/stage/new`)
     else navigate('/rifles')
   }
 
@@ -58,7 +62,16 @@ export function LogScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title="Log" />
+      <ScreenHeader
+        title="Log"
+        right={
+          quickRifleId ? (
+            <Button small variant="secondary" onClick={stageLog}>
+              <Target size={14} /> Stage
+            </Button>
+          ) : undefined
+        }
+      />
       <TurretDivider />
 
       <div style={searchWrap}>

@@ -84,6 +84,14 @@ export interface Impact {
   hit: boolean;
 }
 
+/** One target within a multi-target stage (PRS/NRL style). */
+export interface StageTarget {
+  label?: string;
+  distance: number;
+  hits: number;
+  misses: number;
+}
+
 /** A course of fire. */
 export interface Session extends SyncFields {
   rifleId: string;
@@ -115,6 +123,8 @@ export interface Session extends SyncFields {
   impacts?: Impact[];
   /** Full width of the impact diagram in MOA — the scale for group/zero math. */
   targetSpanMoa?: number;
+  /** Multi-target stage breakdown (PRS/NRL). Non-empty marks this a stage. */
+  stageTargets?: StageTarget[];
   weatherTemp?: number;
   windSpeed?: number;
   windDir?: string;

@@ -97,6 +97,31 @@ export function SessionDetailScreen() {
         </div>
       </Card>
 
+      {session.stageTargets && session.stageTargets.length > 0 && (
+        <>
+          <SectionLabel>Stage targets</SectionLabel>
+          <Card style={{ padding: 0, overflow: 'hidden' }}>
+            {session.stageTargets.map((t, i) => {
+              const tot = t.hits + t.misses
+              return (
+                <div key={i} style={{ ...stageRow, borderTop: i === 0 ? 'none' : '1px solid var(--line-soft)' }}>
+                  <span style={{ color: 'var(--brass)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, width: 64 }}>
+                    {t.distance} yd
+                  </span>
+                  <span style={{ flex: 1, color: 'var(--text-dim)', fontSize: 12.5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.label || `Target ${i + 1}`}
+                  </span>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#f2f4f0' }}>
+                    {t.hits}/{tot}
+                  </span>
+                  <HitRateBadge hits={t.hits} misses={t.misses} />
+                </div>
+              )
+            })}
+          </Card>
+        </>
+      )}
+
       <SectionLabel>Course</SectionLabel>
       <Card>
         <Grid>
@@ -286,6 +311,7 @@ const cellLabel: CSSProperties = {
   color: 'var(--text-faint)',
 }
 const cellValue: CSSProperties = { fontSize: 14, marginTop: 3, fontWeight: 600 }
+const stageRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px' }
 const zeroLine: CSSProperties = {
   marginTop: 14,
   paddingTop: 12,
