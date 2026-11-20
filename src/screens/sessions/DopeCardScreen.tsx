@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useParams } from 'react-router-dom'
-import { Share2, Copy, Check, Crosshair, Gauge, MapPin, Loader } from 'lucide-react'
+import { Share2, Copy, Check, Crosshair, Gauge, MapPin, Loader, Wind, ShieldAlert } from 'lucide-react'
 import { Screen, ScreenHeader, Card, Button, Field, TextInput, Select, Row, EmptyState, SectionLabel } from '../../ui/kit'
 import { TurretDivider } from '../../ui/TurretDivider'
 import { useRifle, useAmmunition, useBarrels, useSessionsForRifle } from '../../hooks/useData'
@@ -9,9 +9,11 @@ import {
   canSolve,
   buildPredictedCard,
   trueUpFromSessions,
+  solverInputsFor,
   type PredictedCard,
 } from '../../domain/dopePredict'
-import { densityAltitudeFt, type Atmosphere } from '../../domain/ballistics'
+import { densityAltitudeFt, solve, type Atmosphere } from '../../domain/ballistics'
+import { summarizeTrust, rowConfidence, type TrustSummary } from '../../domain/trust'
 import { updateAmmunition } from '../../db/repositories/ammunition'
 import { fetchCurrentWeather } from '../../lib/weather'
 import { formatDate, numOrUndef } from '../../lib/format'
@@ -37,6 +39,10 @@ export function DopeCardScreen() {
   const [cHumidity, setCHumidity] = useState('')
   const [geoBusy, setGeoBusy] = useState(false)
   const [geoErr, setGeoErr] = useState<string | null>(null)
+  // Wind holdoff tool.
+  const [windDistTool, setWindDistTool] = useState('')
+  const [windMphTool, setWindMphTool] = useState('10')
+  const [windClock, setWindClock] = useState('3')
 
   // Default to the rifle's turret unit and the first load once data loads.
   useEffect(() => {
@@ -104,6 +110,23 @@ export function DopeCardScreen() {
     return trueUpFromSessions({ rifle, load: selectedLoad, sessions: filtered, outputUnit: unit, atmosphere, twistDir })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rifle, selectedLoad, solvable, filtered, unit, twistDir, condMode, cTemp, cPressure, cHumidity])
+
+  const trust = useMemo(() => (predicted ? summarizeTrust(predicted) : null), [predicted])
+
+  const windHold = useMemo(() => {
+    if (!rifle || !selectedLoad || !solvable) return null
+    const d = numOrUndef(windDistTool)
+    const w = numOrUndef(windMphTool)
+    const c = numOrUndef(windClock)
+    if (d == null || d <= 0 || w == null || c == null) return null
+    const input = solverInputsFor(rifle, selectedLoad, unit, atmosphere, w, twistDir, (c % 12) * 30)
+    const p = solve(input, [d])[0]
+    if (!p) return null
+    const cm = c % 12
+    const dir = cm === 0 || cm === 6 ? '—' : cm >= 1 && cm <= 5 ? 'R' : 'L'
+    return { hold: Math.abs(p.windage), dir, supersonic: p.supersonic }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rifle, selectedLoad, solvable, unit, twistDir, windDistTool, windMphTool, windClock, condMode, cTemp, cPressure, cHumidity])
 
   const legacy = useMemo(() => buildDopeCard(filtered), [filtered])
   const loadLabel =
@@ -239,6 +262,10 @@ export function DopeCardScreen() {
             </Field>
           )}
 
+          {trust && (
+            <TrustBanner trust={trust} maxRowYd={predicted.rows[predicted.rows.length - 1]?.distance} />
+          )}
+
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ ...rowStyle, ...headRow }}>
               <span style={{ ...cell, ...distCell }}>DIST</span>
@@ -249,6 +276,7 @@ export function DopeCardScreen() {
             </div>
             {predicted.rows.map((r, i) => {
               const confirmed = r.confirmedElevation != null
+              const extrap = !!trust && trust.confirmedCount > 0 && rowConfidence(r, trust) === 'extrapolated'
               return (
                 <div
                   key={r.distance}
@@ -258,8 +286,14 @@ export function DopeCardScreen() {
                     opacity: r.supersonic ? 1 : 0.5,
                   }}
                 >
-                  <span style={{ ...cell, ...distCell, color: 'var(--brass)' }}>
-                    {confirmed && <span style={confDot} title={`confirmed · last ${formatDate(r.lastDate)}`} />}
+                  <span style={{ ...cell, ...distCell, color: extrap ? 'var(--text-dim)' : 'var(--brass)' }}>
+                    {confirmed ? (
+                      <span style={confDot} title={`confirmed · last ${formatDate(r.lastDate)}`} />
+                    ) : extrap ? (
+                      <span style={extrapMark} title="beyond your confirmed distances — extrapolated">
+                        ≈
+                      </span>
+                    ) : null}
                     {r.distance}
                   </span>
                   <span style={{ ...cell, color: '#f2f4f0' }}>{fmt(r.elevation, unit)}</span>
@@ -275,8 +309,62 @@ export function DopeCardScreen() {
 
           <div style={{ color: 'var(--text-faint)', fontSize: 11, margin: '8px 2px 0' }}>
             &#9679; = confirmed from your log. &Delta; = your hold &minus; predicted (in {unit}).
+            {trust && trust.confirmedCount > 0 && ' ≈ = extrapolated beyond your confirmed distances.'}
             {predicted.transonicYd != null && ` Rows past ${predicted.transonicYd} yd are transonic/subsonic (dimmed).`}
           </div>
+          <div style={safetyLine}>
+            <ShieldAlert size={13} style={{ flex: 'none', color: 'var(--warn)', marginTop: 1 }} />
+            <span>Predictions are a starting point — confirm at distance before any shot that matters.</span>
+          </div>
+
+          <SectionLabel>Wind holdoff</SectionLabel>
+          <Card>
+            <Row>
+              <Field label="Distance (yd)">
+                <TextInput
+                  inputMode="numeric"
+                  value={windDistTool}
+                  onChange={(e) => setWindDistTool(e.target.value)}
+                  placeholder="600"
+                />
+              </Field>
+              <Field label="Wind (mph)">
+                <TextInput inputMode="numeric" value={windMphTool} onChange={(e) => setWindMphTool(e.target.value)} />
+              </Field>
+              <Field label="From (o'clock)">
+                <Select value={windClock} onChange={(e) => setWindClock(e.target.value)}>
+                  {Array.from({ length: 12 }, (_, k) => String(k + 1)).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </Row>
+            <div style={windResult}>
+              <Wind size={18} style={{ color: 'var(--brass)', flex: 'none' }} />
+              {windHold ? (
+                <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                  Hold{' '}
+                  <strong style={{ color: '#f2f4f0', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {fmt(windHold.hold, unit)} {unit}
+                  </strong>{' '}
+                  {windHold.dir === '—' ? (
+                    <span>(head/tail wind — no windage)</span>
+                  ) : (
+                    <>
+                      <strong style={{ color: 'var(--impact)' }}>{windHold.dir === 'R' ? 'right' : 'left'}</strong>, into
+                      the wind{!windHold.supersonic ? ' · transonic' : ''}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>
+                  Enter a distance to get the crosswind hold at {windMphTool || '—'} mph.
+                </div>
+              )}
+            </div>
+          </Card>
 
           {trueUp && (
             <>
@@ -370,6 +458,36 @@ export function DopeCardScreen() {
   )
 }
 
+/** How well the predicted card fits the shooter's confirmed holds, and over what band. */
+function TrustBanner({ trust, maxRowYd }: { trust: TrustSummary; maxRowYd?: number }) {
+  if (trust.confirmedCount === 0) {
+    return (
+      <div style={{ ...trustBanner, borderLeftColor: 'var(--warn)' }}>
+        No confirmed holds yet — this card is pure prediction. Log elevation holds at known distances to anchor it.
+      </div>
+    )
+  }
+  const unit = trust.unit
+  const bias = trust.bias ?? 0
+  const biasPhrase =
+    Math.abs(bias) >= 0.1 ? ` Runs ${bias > 0 ? 'low' : 'high'} ~${fmt(Math.abs(bias), unit)} ${unit}.` : ''
+  const beyond =
+    maxRowYd != null && trust.maxConfirmedYd != null && maxRowYd > trust.maxConfirmedYd
+      ? ` Confirm past ${trust.maxConfirmedYd} yd before trusting.`
+      : ''
+  return (
+    <div style={trustBanner}>
+      Fit{' '}
+      <strong style={{ color: '#f2f4f0' }}>
+        ±{fmt(trust.rmsResidual ?? 0, unit)} {unit}
+      </strong>{' '}
+      across {trust.confirmedCount} confirmed {trust.confirmedCount === 1 ? 'hold' : 'holds'}, {trust.minConfirmedYd}–
+      {trust.maxConfirmedYd} yd.{biasPhrase}
+      {beyond}
+    </div>
+  )
+}
+
 function fmt(v: number, unit: AngularUnit): string {
   return unit === 'MOA' ? v.toFixed(2) : v.toFixed(1)
 }
@@ -425,6 +543,35 @@ const confDot: CSSProperties = {
   borderRadius: '50%',
   background: 'var(--brass)',
   flex: 'none',
+}
+const extrapMark: CSSProperties = { color: 'var(--text-faint)', fontSize: 12 }
+const trustBanner: CSSProperties = {
+  background: 'var(--panel)',
+  border: '1px solid var(--line)',
+  borderLeft: '3px solid var(--brass)',
+  borderRadius: 8,
+  padding: '10px 12px',
+  margin: '0 0 12px',
+  fontSize: 12.5,
+  color: 'var(--text-dim)',
+  lineHeight: 1.5,
+}
+const safetyLine: CSSProperties = {
+  display: 'flex',
+  gap: 7,
+  alignItems: 'flex-start',
+  margin: '10px 2px 0',
+  fontSize: 11.5,
+  color: 'var(--text-dim)',
+  lineHeight: 1.5,
+}
+const windResult: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  marginTop: 6,
+  paddingTop: 10,
+  borderTop: '1px solid var(--line-soft)',
 }
 const unitBtn: CSSProperties = {
   fontFamily: 'JetBrains Mono, monospace',

@@ -40,6 +40,7 @@ export function solverInputsFor(
   atmosphere?: Atmosphere,
   windMph?: number,
   twistDir?: 'R' | 'L',
+  windAngleDeg = 90,
 ): SolveInput {
   return {
     muzzleVelocityFps: load.muzzleVelocity!,
@@ -50,7 +51,7 @@ export function solverInputsFor(
     zeroRangeYd: rifle.zeroRange ?? 100,
     outputUnit,
     atmosphere,
-    wind: windMph != null ? { speedMph: windMph, angleDeg: 90 } : undefined,
+    wind: windMph != null ? { speedMph: windMph, angleDeg: windAngleDeg } : undefined,
     twistDir,
   }
 }
